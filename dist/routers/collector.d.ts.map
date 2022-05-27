@@ -1,0 +1,1 @@
+{"version":3,"file":"collector.d.ts","sourceRoot":"","sources":["../../src/routers/collector.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,OAAO,EAAE,MAAM,YAAY,CAAC;AACrC,OAAO,EAAE,MAAM,EAAE,MAAM,2BAA2B,CAAA;AAElD,OAAO,EAAE,OAAO,EAAE,MAAM,YAAY,CAAC;AAIrC,MAAM,CAAC,OAAO,WAAW,MAAM,EAAE,MAAM,EAAE,OAAO,EAAE,OAAO,EAAE,MAAM,EAAE,OAAO,QAqEzE"}
