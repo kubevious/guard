@@ -155,8 +155,6 @@ wait_validation()
   STAGE_NAME="Waiting Validation"
   start_stage
 
-# query_validation_status
-
   while true
   do
     query_validation_status
