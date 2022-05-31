@@ -1,11 +1,10 @@
-import { DeltaSummary } from "../summary/types";
 import { DBSnapshot } from "./snapshot";
 
 
 export interface DBSnapshotRow {
     base_snapshot_id: Buffer | null,
     date: string,
-    summary: DeltaSummary
+    summary: any
 }
 
 export interface DBSnapshotItemKey {
@@ -18,14 +17,14 @@ export interface DBSnapshotItemKey {
 export interface DBSnapshotFullData
 {
     snapshot: DBSnapshot,
-    summary: DeltaSummary
+    summary: any
 }
 
 export interface DBSnapshotProcessableData
 {
     baseSnapshot?: DBSnapshot,
     snapshot: DBSnapshot,
-    summary: DeltaSummary
+    summary: any
 }
 
 

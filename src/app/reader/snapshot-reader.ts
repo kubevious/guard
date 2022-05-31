@@ -12,8 +12,6 @@ import { DBSnapshot } from './snapshot'
 import { BufferUtils } from '@kubevious/data-models';
 import { UuidUtils } from '@kubevious/data-models';
 
-import { DeltaSummary } from '../summary/types';
-
 export class SnapshotReader
 {
     private _logger : ILogger;
@@ -120,24 +118,6 @@ export class SnapshotReader
                 snapshot_id: this._snapshotId
             });
     }
-
-    public querySnapshotSummary() : Promise<DeltaSummary | null>
-    {
-        return this._dataStore.table(this._context.dataStore.snapshots.Snapshots)
-            .queryOne({
-                part: this._partId,
-                snapshot_id: this._snapshotId
-            }, {
-                fields: { fields: ['summary'] }
-            })
-            .then(row => {
-                if (!row) {
-                    return null
-                }
-                return <DeltaSummary | null>row.summary;
-            });
-    }
-
 
     private _querySnapshotItems(snapshotId: Buffer)
     {

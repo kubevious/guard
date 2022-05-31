@@ -15,8 +15,6 @@ import { DBSnapshot } from '../reader/snapshot';
 import { PersistableSnapshot } from './persistable-snapshot';
 
 import { BufferUtils } from '@kubevious/data-models';
-import { SummaryCalculator } from '../summary/calculator';
-import { DeltaSummary, newDeltaSummary, TimelineSummary } from '../summary/types';
 import { ExecutionContext as RuleEngineExecutionContext } from '@kubevious/helper-rule-engine';
 import { ValidationConfig } from '@kubevious/entity-meta';
 import { RecentBaseSnapshotReader } from '../reader/recent-base-snapshot-reader';
@@ -33,21 +31,11 @@ export class ExecutorTask
     
     private _targetBundleState? : RegistryBundleState;
     private _targetSnapshot? : PersistableSnapshot;
-    private _latestSnapshot: DBSnapshot | null = null;
-    private _baseSnapshot: DBSnapshot | null = null;
-    private _latestSummary : DeltaSummary | null = null;
-    private _deltaSummary: DeltaSummary | null = null;
-    private _baseDeltaSnapshots : DeltaSnapshotInfo[] = [];
-    private _finalPersistableSnapshot : PersistableSnapshot | null = null;
-    private _latestSnapshotDelta : PersistableSnapshot | null = null;
-    private _timelineSummary : TimelineSummary | null = null;
 
     private _registryState? : RegistryState;
     private _rules? : RuleObject[];
     private _markers? : MarkerObject[];
     private _ruleEngineResult?: RuleEngineExecutionContext;
-
-    private _snapshotDate: Date = new Date();
 
     private _validationConfig: Partial<ValidationConfig> = {};
     private _logicStoreItems : PersistenceItem[] = [];
@@ -78,12 +66,6 @@ export class ExecutorTask
             .then(() => this._queryLogicStore(tracker))
             .then(() => this._executeLogicProcessor(tracker))
             .then(() => this._executeSnapshotProcessor(tracker))
-            .then(() => this._queryBaseSnapshot(tracker))
-            .then(() => this._checkBaseSnapshot(tracker))
-            .then(() => this._processLatestDeltaSnapshot(tracker))
-            .then(() => this._processBaseDeltaSnapshot(tracker))
-            .then(() => this._producePersistableSnapshot(tracker))
-            .then(() => this._calculateSummary(tracker))
             .then(() => this._notifyWebSocket(tracker))
             .then(() => {})
             ;
@@ -213,191 +195,6 @@ export class ExecutorTask
         });
     }
 
-    private _queryBaseSnapshot(tracker: ProcessingTrackerScoper)
-    {
-        return tracker.scope("query-base-snapshot", (innerTracker) => {
-
-
-            const reader = new RecentBaseSnapshotReader(this.logger, this._context);
-            return reader.query()
-                .then(result => {
-                    if (!result) {
-                        this.logger.info("[_queryBaseSnapshot] No Base Snapshot found.");
-                    } else {
-                        this._baseSnapshot = result.baseSnapshot!;
-                        this._latestSnapshot = result.snapshot;
-                        this._latestSummary = result.summary;
-
-                        if (this._baseSnapshot) {
-                            this.logger.info("[_queryBaseSnapshot] Base Snapshot: %s, size: %s", BufferUtils.toStr(this._baseSnapshot!.snapshotId!), this._baseSnapshot!.count);
-                        }
-                        this.logger.info("[_queryBaseSnapshot] Latest Snapshot: %s, size: %s", BufferUtils.toStr(this._latestSnapshot!.snapshotId!), this._latestSnapshot!.count);
-                    }
-
-                    if (!this._latestSnapshot) {
-                        this._latestSnapshot = new DBSnapshot(null, new Date());
-                    }
-
-                    if (!this._latestSummary) {
-                        this._latestSummary = newDeltaSummary();
-                    }
-
-                });
-
-        });
-    }
-
-    private _checkBaseSnapshot(tracker: ProcessingTrackerScoper)
-    {
-        if (this._baseSnapshot) {
-            this.logger.info("BaseSnapshot Item Count: %s, Id: %s", this._baseSnapshot.count, BufferUtils.toStr(this._baseSnapshot.snapshotId!))
-        } else {
-            this.logger.info("No BaseSnapshot")
-        }
-
-        if (!this._latestSnapshot) {
-            throw new Error("Latest Snapshot Not Set");
-        }
-
-        return Promise.resolve()
-            .then(() => {
-                if (this._baseSnapshot) {
-                    return this._outputFile(`base-snapshot.json`, this._baseSnapshot.export());
-                }
-            })
-            .then(() => {
-                return this._outputFile(`latest-snapshot.json`, this._latestSnapshot!.export());
-            })
-            .then(() => {
-                return this._outputFile(`latest-summary.json`, this._latestSummary!)
-            })
-    }
-
-    private _processLatestDeltaSnapshot(tracker: ProcessingTrackerScoper)
-    {
-        return tracker.scope("process-latest-delta-snapshot", (innerTracker) => {
-            
-            const deltaSnapshot = this._produceDeltaSnapshot(this._latestSnapshot!); 
-
-            this.logger.info("LatestDeltaSnapshot. Partition: %s", deltaSnapshot.partitionId)
-            this.logger.info("LatestDeltaSnapshot. SNAP ITEMS: %s", deltaSnapshot.snapItemCount)
-            this.logger.info("LatestDeltaSnapshot. DIFF ITEMS: %s", deltaSnapshot.diffItemCount)
-            this.logger.info("LatestDeltaSnapshot. DIFF ITEMS PRESENT: %s", deltaSnapshot.diffItems.filter(x => x.present).length)
-            this.logger.info("LatestDeltaSnapshot. DIFF ITEMS NOT PRESENT: %s", deltaSnapshot.diffItems.filter(x => !x.present).length)
-
-            this._latestSnapshotDelta = deltaSnapshot;
-
-            return Promise.resolve()
-                .then(() => this._outputFile(`latest-delta-snapshot.json`, deltaSnapshot.export()));
-
-        });
-    }
-
-    private _processBaseDeltaSnapshot(tracker: ProcessingTrackerScoper)
-    {
-        return tracker.scope("process-base-delta-snapshot", (innerTracker) => {
-         
-            if (!this._baseSnapshot) {
-                if (this._latestSnapshot!.snapshotId) {
-
-                    if (this._targetSnapshot!.partitionId === this._latestSnapshotDelta!.partitionId) {
-                        this._baseDeltaSnapshots.push({
-                            deltaChangePerc: 0,
-                            snapshot: this._latestSnapshotDelta!
-                        })
-                    } else {
-                        this.logger.info("BaseDeltaSnapshot. Skipping latest snapshot because different partitionId.");
-                    }
-                }
-                return;
-            }
-
-            if (this._baseSnapshot!.snapshotId == this._latestSnapshot!.snapshotId) {
-                throw new Error("THIS SHOULD NOT HAPPEN.")
-                return;
-            }
-
-            const deltaSnapshot = this._produceDeltaSnapshot(this._baseSnapshot!); 
-
-            this.logger.info("BaseDeltaSnapshot. Partition: %s", deltaSnapshot.partitionId)
-            this.logger.info("BaseDeltaSnapshot. SNAP ITEMS: %s", deltaSnapshot.snapItemCount)
-            this.logger.info("BaseDeltaSnapshot. DIFF ITEMS: %s", deltaSnapshot.diffItemCount)
-            this.logger.info("BaseDeltaSnapshot. DIFF ITEMS PRESENT: %s", deltaSnapshot.diffItems.filter(x => x.present).length)
-            this.logger.info("BaseDeltaSnapshot. DIFF ITEMS NOT PRESENT: %s", deltaSnapshot.diffItems.filter(x => !x.present).length)
-
-            if (this._targetSnapshot!.partitionId === deltaSnapshot.partitionId) {
-                this._baseDeltaSnapshots.push({
-                    deltaChangePerc: 0,
-                    snapshot: deltaSnapshot
-                })
-            } else {
-                this.logger.info("BaseDeltaSnapshot. Skipping base snapshot because different partitionId.");
-            }
-
-            return Promise.resolve()
-                .then(() => this._outputFile(`base-delta-snapshot.json`, deltaSnapshot.export()))
-                ;
-
-        });
-    }
-
-    private _producePersistableSnapshot(tracker: ProcessingTrackerScoper)
-    {
-        return tracker.scope("produce-persistable-snapshot", (innerTracker) => {
-
-            for(const deltaInfo of this._baseDeltaSnapshots)
-            {
-                deltaInfo.deltaChangePerc = this._calculateDiffPercentage(deltaInfo.snapshot);
-                const idStr = deltaInfo.snapshot.dbSnapshot.snapshotId ? BufferUtils.toStr(deltaInfo.snapshot.dbSnapshot.snapshotId) : 'NONE';
-                this.logger.info("DeltaSnapshot. ID: %s", idStr);
-                this.logger.info("DeltaSnapshot. deltaChangePerc: %s%%", deltaInfo.deltaChangePerc);
-            }
-
-            const deltaSnapshots = this._baseDeltaSnapshots.filter(x => x.deltaChangePerc < 50);
-            const finalDeltaSnapshot = _.minBy(deltaSnapshots, x => x.deltaChangePerc);
-
-            let finalSnapshot : PersistableSnapshot;
-            if (finalDeltaSnapshot)
-            {
-                this.logger.info("DeltaSnapshot. Storing using diff snapshot. Percentage: %s%%", finalDeltaSnapshot.deltaChangePerc)
-                finalSnapshot = finalDeltaSnapshot.snapshot;
-                this.logger.info("DeltaSnapshot. Storing using diff snapshot. BaseId: %s", BufferUtils.toStr(finalSnapshot.dbSnapshot.snapshotId!))
-            }
-            else
-            {
-                this.logger.info("DeltaSnapshot. Storing using new snapshot.")
-                finalSnapshot = this._targetSnapshot!;
-            }
-
-            this.logger.info("FinalSnapshot. SNAP ITEMS: %s", finalSnapshot.snapItemCount)
-            this.logger.info("FinalSnapshot. DIFF ITEMS: %s", finalSnapshot.diffItemCount)
-            this.logger.info("FinalSnapshot. DIFF ITEMS PRESENT: %s", finalSnapshot.diffItems.filter(x => x.present).length)
-            this.logger.info("FinalSnapshot. DIFF ITEMS NOT PRESENT: %s", finalSnapshot.diffItems.filter(x => !x.present).length)
-
-            this._finalPersistableSnapshot = finalSnapshot;
-
-            return Promise.resolve()
-                .then(() => this._outputFile(`final-snapshot.json`, finalSnapshot.export()))
-                ;
-            
-        });
-    }
-
-    private _calculateSummary(tracker: ProcessingTrackerScoper)
-    {
-        return tracker.scope("calculate-summary", (innerTracker) => {
-
-            const calculator = new SummaryCalculator(this._logger, this._targetSnapshot!, this._latestSnapshotDelta!, this._latestSummary!)
-            const summary = calculator.process();
-
-            this._deltaSummary = summary;
-            this._timelineSummary = calculator.timelineSummary;
-
-            return Promise.resolve()
-                .then(() => this._outputFile(`delta-summary.json`, this._deltaSummary!))
-
-        });
-    }
 
     private _notifyWebSocket(tracker: ProcessingTrackerScoper)
     {

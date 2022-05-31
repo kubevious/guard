@@ -72,3 +72,5 @@ typings/
 
 output/
 output-agent/
+
+dist/

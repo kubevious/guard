@@ -24,34 +24,34 @@ export class BackendMetrics
 
     extractMetrics() 
     {
-        let metrics: BackendMetricItem[] = [];
+        const metrics: BackendMetricItem[] = [];
 
         metrics.push({
-            category: "Collector",
+            category: "Guard",
             name: "Version",
             value: VERSION
         });
 
         metrics.push({
-            category: "Collector",
+            category: "Guard",
             name: "MySQL Connected",
             value: this._context.dataStore.isConnected
         });
 
         metrics.push({
-            category: "Collector",
+            category: "Guard",
             name: "Redis Connected",
             value: this._context.redis.isConnected
         });
 
-        {
-            const newMetrics = this._context.collector.extractMetrics();
-            metrics = _.concat(metrics, newMetrics);
-        }
-        {
-            const newMetrics = this._context.executor.extractMetrics();
-            metrics = _.concat(metrics, newMetrics);
-        }
+        // {
+        //     const newMetrics = this._context.collector.extractMetrics();
+        //     metrics = _.concat(metrics, newMetrics);
+        // }
+        // {
+        //     const newMetrics = this._context.executor.extractMetrics();
+        //     metrics = _.concat(metrics, newMetrics);
+        // }
 
         return metrics;
     }
