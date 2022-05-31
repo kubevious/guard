@@ -54,9 +54,9 @@ export class ConcreteItem implements IConcreteItem
         // if (!_.isObject(idFilter)) {
         //     return false;
         // }
-        for(let key of _.keys(idFilter!)) {
-            let filterVal = idFilter[key];
-            let idVal = _.get(this.id, key);
+        for(const key of _.keys(idFilter!)) {
+            const filterVal = idFilter[key];
+            const idVal = _.get(this.id, key);
             if (!_.isEqual(filterVal, idVal)) {
                 return false;
             }
@@ -85,7 +85,7 @@ export class ConcreteItem implements IConcreteItem
     }
 
     dump() {
-        var result : Record<any, any> = {
+        const result : Record<any, any> = {
             id: this.id
         }
         if (this.config) {

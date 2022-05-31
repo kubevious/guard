@@ -92,8 +92,6 @@ export class Executor
             this._counters.recentDurations.push(durationMs);
             this._counters.recentDurations = _.takeRight(this._counters.recentDurations, 10);
         }
-
-        this._context.collector.completeSnapshotProcessing(target.registry.snapshotId);
     }
 
 }

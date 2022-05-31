@@ -6,7 +6,6 @@ import { Backend } from '@kubevious/helper-backend'
 import { FacadeRegistry } from './facade/registry';
 import { Database } from './db';
 import { Registry } from './registry/registry';
-import { Collector } from './collector/collector';
 import { DebugObjectLogger } from './utils/debug-object-logger';
 import { SnapshotProcessor } from './snapshot-processor';
 import { WorldviousClient } from '@kubevious/worldvious-client';
@@ -14,8 +13,6 @@ import { WorldviousClient } from '@kubevious/worldvious-client';
 import { RedisClient } from '@kubevious/helper-redis';
 
 import { WebServer } from './server';
-
-import { SeriesResampler } from '@kubevious/data-models';
 
 import { ParserLoader } from '@kubevious/helper-logic-processor';
 import { Executor } from './app/executor/executor'
@@ -25,6 +22,7 @@ import { ConfigAccessor } from '@kubevious/data-models';
 import VERSION from './version'
 import { WebSocketUpdater } from './app/websocket-updater/websocket-updater';
 import { BackendMetrics } from './app/backend-metrics';
+import { SnapshotMonitor } from './app/snapshot-monitor/snapshot-monitor';
 
 export class Context
 {
@@ -37,7 +35,6 @@ export class Context
     private _dataStore: Database;
     private _redis : RedisClient;
 
-    private _collector: Collector;
     private _registry: Registry;
 
     private _facadeRegistry: FacadeRegistry;
@@ -50,13 +47,12 @@ export class Context
 
     private _snapshotProcessor: SnapshotProcessor;
 
-    private _seriesResamplerHelper: SeriesResampler;
-
     private _parserLoader : ParserLoader;
 
     private _webSocketUpdater : WebSocketUpdater;
     private _backendMetrics : BackendMetrics;
 
+    private _snapshotMonitor : SnapshotMonitor;
 
     constructor(backend : Backend)
     {
@@ -74,7 +70,6 @@ export class Context
 
         this._backendMetrics = new BackendMetrics(this);
 
-        this._collector = new Collector(this);
         this._registry = new Registry(this);
 
         this._facadeRegistry = new FacadeRegistry(this);
@@ -86,13 +81,9 @@ export class Context
 
         this._snapshotProcessor = new SnapshotProcessor(this);
 
-        this._webSocketUpdater = new WebSocketUpdater(this);
+        this._snapshotMonitor = new SnapshotMonitor(this);
 
-        this._seriesResamplerHelper = new SeriesResampler(200)
-            .column("changes", x => _.max(x) ?? 0)
-            .column("error", _.mean)
-            .column("warn", _.mean)
-            ;
+        this._webSocketUpdater = new WebSocketUpdater(this);
 
         this._server = new WebServer(this);
 
@@ -110,7 +101,10 @@ export class Context
 
         backend.stage("setup-facade", () => this._facadeRegistry.init());
 
-        backend.stage("setup-parser-loader", () => this._parserLoader.init());
+        // TODO: Temporary
+        // backend.stage("setup-parser-loader", () => this._parserLoader.init());
+
+        backend.stage("setup-snapshot-monitor", () => this._snapshotMonitor.init());
 
         backend.stage("setup-server", () => this._server.run());
 
@@ -152,10 +146,6 @@ export class Context
         return this._facadeRegistry;
     }
 
-    get collector() {
-        return this._collector;
-    }
-
     get registry() {
         return this._registry;
     }
@@ -174,10 +164,6 @@ export class Context
 
     get worldvious() {
         return this._worldvious;
-    }
-
-    get seriesResamplerHelper() {
-        return this._seriesResamplerHelper;
     }
 
     get webSocketUpdater() {
