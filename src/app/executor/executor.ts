@@ -32,25 +32,54 @@ export class Executor
         return this._logger;
     }
 
-    process(target: ExecutorTarget) : Promise<any>
+    process(target: ExecutorTarget) //: Promise<any>
     {
-        const stopwatch = new StopWatch();
+        this._logger.info("[process] JOB: ", target.job);
 
-        const myTarget = this._makeTaskTarget(target);
+        return Promise.resolve()
+            .then(() => this._context.snapshotMonitor.fetchCurrentRegistry())
+            .then(concreteRegistry => {
+                this._logger.info("[process] concreteRegistry: XXXXX");
 
-        return this._context.tracker.scope("executor", (innerTracker) => {
-            const task = new ExecutorTask(this._logger, this._context, myTarget);
-            return task.execute(innerTracker);
-        })
-        .then(() => {
-            this._markComplete(target, stopwatch);
-        })
-        .catch((error) => {
-            this._logger.error("[Executor] ERROR: ", error);
+                if (!concreteRegistry)
+                {
+                    return this._markFailure();
+                }
+                else
+                {
+                    const taskTarget : ExecutorTaskTarget = {
+                        job: target.job,
+                        registry: concreteRegistry,
+                        snapshotIdStr: concreteRegistry.snapshotId
+                    }
 
-            this._markComplete(target, stopwatch);
-        })
-        ;
+                    return this._context.tracker.scope("executor", (innerTracker) => {
+                        const task = new ExecutorTask(this._logger, this._context, taskTarget);
+                        return task.execute(innerTracker);
+                    });
+                }
+            })
+            .catch(reason => {
+                return this._markFailure();
+            })
+
+        // const stopwatch = new StopWatch();
+
+        // const myTarget = this._makeTaskTarget(target);
+
+        // return this._context.tracker.scope("executor", (innerTracker) => {
+        //     const task = new ExecutorTask(this._logger, this._context, myTarget);
+        //     return task.execute(innerTracker);
+        // })
+        // .then(() => {
+        //     this._markComplete(target, stopwatch);
+        // })
+        // .catch((error) => {
+        //     this._logger.error("[Executor] ERROR: ", error);
+
+        //     this._markComplete(target, stopwatch);
+        // })
+        // ;
     }
 
     extractMetrics()
@@ -72,26 +101,31 @@ export class Executor
         return metrics;
     }
 
-    private _makeTaskTarget(target: ExecutorTarget) : ExecutorTaskTarget
+    private _markFailure()
     {
-        const myTarget : ExecutorTaskTarget = {
-            registry: target.registry,
-            snapshotId: BufferUtils.fromStr(target.registry.snapshotId),
-            date: target.registry.date,
-            counters: this._counters
-        }
-        return myTarget;
+
     }
 
-    private _markComplete(target: ExecutorTarget, stopwatch: StopWatch)
-    {
-        this._counters.processCount++;
+    // private _makeTaskTarget(target: ExecutorTarget) : ExecutorTaskTarget
+    // {
+    //     const myTarget : ExecutorTaskTarget = {
+    //         registry: target.registry,
+    //         snapshotId: BufferUtils.fromStr(target.registry.snapshotId),
+    //         date: target.registry.date,
+    //         counters: this._counters
+    //     }
+    //     return myTarget;
+    // }
+
+    // private _markComplete(target: ExecutorTarget, stopwatch: StopWatch)
+    // {
+    //     this._counters.processCount++;
         
-        {
-            const durationMs = stopwatch.stop() / 1000;
-            this._counters.recentDurations.push(durationMs);
-            this._counters.recentDurations = _.takeRight(this._counters.recentDurations, 10);
-        }
-    }
+    //     {
+    //         const durationMs = stopwatch.stop() / 1000;
+    //         this._counters.recentDurations.push(durationMs);
+    //         this._counters.recentDurations = _.takeRight(this._counters.recentDurations, 10);
+    //     }
+    // }
 
 }

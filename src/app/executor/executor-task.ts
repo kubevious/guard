@@ -6,16 +6,15 @@ import * as Path from 'path';
 
 import { LogicProcessor } from '@kubevious/helper-logic-processor'
 import { ProcessingTrackerScoper } from '@kubevious/helper-backend';
-import { RegistryState, RegistryBundleState, SnapshotConfigKind } from '@kubevious/state-registry';
+import { RegistryState, RegistryBundleState } from '@kubevious/state-registry';
 
 import { Context } from '../../context'
 import { ExecutorTaskTarget } from './types';
 
-import { BufferUtils } from '@kubevious/data-models';
-import { ExecutionContext as RuleEngineExecutionContext } from '@kubevious/helper-rule-engine';
 import { ValidationConfig } from '@kubevious/entity-meta';
-import { MarkerObject, RuleObject } from '../../rule/types';
+import { RuleObject } from '../../rule/types';
 import { PersistenceItem } from '@kubevious/helper-logic-processor/dist/store/presistence-store';
+import { ConcreteRegistry } from '../../concrete/registry';
 
 export class ExecutorTask
 {
@@ -25,15 +24,13 @@ export class ExecutorTask
 
     private _snapshotIdStr: string;
     
-    private _targetBundleState? : RegistryBundleState;
-
-    private _registryState? : RegistryState;
     private _rules? : RuleObject[];
-    private _markers? : MarkerObject[];
-    private _ruleEngineResult?: RuleEngineExecutionContext;
 
     private _validationConfig: Partial<ValidationConfig> = {};
     private _logicStoreItems : PersistenceItem[] = [];
+
+    private _baselineStage?: ProcessingStage;
+    private _changeStage?: ProcessingStage;
 
     constructor(logger: ILogger, context : Context, target: ExecutorTaskTarget)
     {
@@ -41,7 +38,7 @@ export class ExecutorTask
         this._context = context;
         this._target = target;
 
-        this._snapshotIdStr = BufferUtils.toStr(target.snapshotId);
+        this._snapshotIdStr = target.snapshotIdStr;
 
         this.logger.info('snapshot: %s', this._snapshotIdStr);
     }
@@ -57,12 +54,13 @@ export class ExecutorTask
         return Promise.resolve()
             .then(() => this._queryValidatorConfig(tracker))
             .then(() => this._queryRules(tracker))
-            .then(() => this._queryMarkers(tracker))
-            .then(() => this._queryLogicStore(tracker))
-            .then(() => this._executeLogicProcessor(tracker))
-            .then(() => this._executeSnapshotProcessor(tracker))
-            .then(() => this._notifyWebSocket(tracker))
-            .then(() => {})
+            // .then(() => this._queryMarkers(tracker))
+            // .then(() => this._queryLogicStore(tracker))
+            .then(() => this._processBaseline(tracker))
+            .then(() => this._processChange(tracker))
+            .then(() => this._processAlerts(tracker))
+            // .then(() => this._notifyWebSocket(tracker))
+            // .then(() => {})
             ;
     }
 
@@ -101,24 +99,6 @@ export class ExecutorTask
         });
     }
 
-    private _queryMarkers(tracker: ProcessingTrackerScoper)
-    {
-        return tracker.scope("query-markers", (innerTracker) => {
-
-            return this._context.dataStore.table(this._context.dataStore.ruleEngine.Markers)
-                .queryMany({})
-                .then(rows => {
-                    this._markers = rows.map(x => {
-                        const marker : MarkerObject = {
-                            name: x.name!
-                        }
-                        return marker;
-                    });
-                });
-
-        });
-    }
-
     private _queryLogicStore(tracker: ProcessingTrackerScoper)
     {
         return tracker.scope("query-logic-store", (innerTracker) => {
@@ -139,15 +119,55 @@ export class ExecutorTask
         });
     }
 
-    private _executeLogicProcessor(tracker: ProcessingTrackerScoper)
+    private _processBaseline(tracker: ProcessingTrackerScoper)
     {
-        return tracker.scope("run-logic-processor", (innerTracker) => {
+        return tracker.scope("baseline", (innerTracker) => {
+
+            this._baselineStage = {
+                concreteRegistry: this._target.registry
+            }
+
+            return Promise.resolve()
+                .then(() => this._executeLogicProcessor(this._baselineStage!, innerTracker))
+                .then(() => this._executeSnapshotProcessor(this._baselineStage!, innerTracker))
+                ;
+
+        });
+    }
+
+    private _processChange(tracker: ProcessingTrackerScoper)
+    {
+        return tracker.scope("change", (innerTracker) => {
+
+            this._changeStage = {
+                concreteRegistry: this._target.registry
+            }
+
+            return Promise.resolve()
+                .then(() => this._executeLogicProcessor(this._changeStage!, innerTracker))
+                .then(() => this._executeSnapshotProcessor(this._changeStage!, innerTracker))
+                ;
+                
+        });
+    }
+
+    private _processAlerts(tracker: ProcessingTrackerScoper)
+    {
+        return tracker.scope("process-alerts", (innerTracker) => {
+
+                
+        });
+    }
+
+    private _executeLogicProcessor(stage: ProcessingStage, tracker: ProcessingTrackerScoper)
+    {
+        return tracker.scope("logic-processor", (innerTracker) => {
 
             const logicProcessor = new LogicProcessor(
                 this.logger,
                 innerTracker,
                 this._context.parserLoader,
-                this._target.registry,
+                stage.concreteRegistry,
                 this._validationConfig);
             logicProcessor.store.loadItems(this._logicStoreItems);
 
@@ -155,28 +175,26 @@ export class ExecutorTask
                 .then(registryState => {
                     this.logger.info("[_executeLogicProcessor] End. Node Count: %s", registryState.getNodes().length)
 
-                    this._registryState = registryState;
-
-                    this._logicStoreItems = logicProcessor.store.exportItems();
-
-                    // this.logger.info("LogicProcessor Complete.")
-                    // this.logger.info("RegistryState Item Count: %s", registryState.getCount());
+                    stage.registryState = registryState;
                 })
 
         });
     }
 
-    private _executeSnapshotProcessor(tracker: ProcessingTrackerScoper)
+    private _executeSnapshotProcessor(stage: ProcessingStage, tracker: ProcessingTrackerScoper)
     {
         return tracker.scope("snapshot-processor", (innerTracker) => {
+
+            if (!stage.registryState) {
+                throw new Error("Could not produce registryState");
+            }
             
-            return this._context.snapshotProcessor.process(this._registryState!, this._rules!, innerTracker)
+            return this._context.snapshotProcessor.process(stage.registryState, this._rules!, innerTracker)
                 .then(result => {
                     this.logger.info("SnapshotProcessor Complete.")
                     this.logger.info("SnapshotProcessor Count: %s", result.bundle.getCount())
 
-                    this._targetBundleState = result.bundle;
-                    this._ruleEngineResult = result.ruleEngineResult;
+                    stage.bundleState = result.bundle;
 
                     return Promise.resolve()
                         .then(() => this._outputFile(`snapshot-processor-rules-engine-result.json`, result.ruleEngineResult))
@@ -203,4 +221,11 @@ export class ExecutorTask
         return this.logger.outputFile(filePath, contents)
     }
 
+}
+
+interface ProcessingStage
+{
+    concreteRegistry: ConcreteRegistry;
+    registryState?: RegistryState;
+    bundleState?: RegistryBundleState;
 }

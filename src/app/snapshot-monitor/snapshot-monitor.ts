@@ -1,10 +1,12 @@
 import _ from 'the-lodash';
 import { ILogger } from "the-logger";
+import { BlockingResolver } from 'the-promise';
 import { BufferUtils } from '@kubevious/data-models';
 
 import { Context } from "../../context";
 
 import { ConcreteRegistryReader } from '../concrete-registry-reader/concrete-registry-reader';
+import { ConcreteRegistry } from '../../concrete/registry';
 
 export class SnapshotMonitor
 {
@@ -12,6 +14,8 @@ export class SnapshotMonitor
     private _context : Context;
 
     private _latestSnapshotId: string | null = null;
+
+    private _registryResolvers : Record<string, BlockingResolver<ConcreteRegistry | null>> = {};
 
     constructor(context : Context)
     {
@@ -26,6 +30,20 @@ export class SnapshotMonitor
     init() 
     {
         this._context.dataStore.onConnect(this._refreshLatestSnapshotId.bind(this));
+    }
+
+    fetchCurrentRegistry() : Promise<ConcreteRegistry | null>
+    {
+        if (!this._latestSnapshotId) {
+            return Promise.resolve(null);
+        }
+
+        const resolver = this._registryResolvers[this._latestSnapshotId];
+        if (!resolver) {
+            return Promise.resolve(null);
+        }
+
+        return resolver.resolve();
     }
 
     private _refreshLatestSnapshotId()
@@ -51,9 +69,23 @@ export class SnapshotMonitor
 
         this._latestSnapshotId = snapshotId;
 
-        if (this._latestSnapshotId) {
-            return this._loadSnapshot(snapshotId);
+        if (!this._latestSnapshotId) {
+            return;
         }
+
+        const resolver = new BlockingResolver<ConcreteRegistry | null>(() => {
+            return this._loadSnapshot(snapshotId)
+                .then(concreteRegistry => {
+                    if (!concreteRegistry) {
+                        delete this._registryResolvers[snapshotId];
+                    }
+                    return concreteRegistry;
+                })
+        });
+
+        this._registryResolvers[snapshotId] = resolver;
+
+        return resolver.resolve();
     }
 
     private _loadSnapshot(snapshotId: string)
@@ -66,9 +98,11 @@ export class SnapshotMonitor
             .then(result => {
                 this.logger.info("READY!!!");
 
-                if (result) {
-                    this.logger.info("Concrete Registry: ", result.extractCapacity());
-                }
+                // if (result) {
+                //     this.logger.info("Concrete Registry: ", result.extractCapacity());
+                // }
+
+                return result;
             })
 
     }

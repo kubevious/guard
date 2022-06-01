@@ -3,7 +3,6 @@ import _ from 'the-lodash';
 
 import { Backend } from '@kubevious/helper-backend'
 
-import { FacadeRegistry } from './facade/registry';
 import { Database } from './db';
 import { Registry } from './registry/registry';
 import { DebugObjectLogger } from './utils/debug-object-logger';
@@ -19,10 +18,13 @@ import { Executor } from './app/executor/executor'
 
 import { ConfigAccessor } from '@kubevious/data-models';
 
-import VERSION from './version'
 import { WebSocketUpdater } from './app/websocket-updater/websocket-updater';
 import { BackendMetrics } from './app/backend-metrics';
 import { SnapshotMonitor } from './app/snapshot-monitor/snapshot-monitor';
+import { ValidationScheduler } from './app/validation-scheduler/validation-scheduler';
+
+
+import VERSION from './version'
 
 export class Context
 {
@@ -36,8 +38,6 @@ export class Context
     private _redis : RedisClient;
 
     private _registry: Registry;
-
-    private _facadeRegistry: FacadeRegistry;
 
     private _debugObjectLogger: DebugObjectLogger;
 
@@ -53,6 +53,7 @@ export class Context
     private _backendMetrics : BackendMetrics;
 
     private _snapshotMonitor : SnapshotMonitor;
+    private _validationScheduler : ValidationScheduler;
 
     constructor(backend : Backend)
     {
@@ -72,7 +73,6 @@ export class Context
 
         this._registry = new Registry(this);
 
-        this._facadeRegistry = new FacadeRegistry(this);
         this._executor = new Executor(this);
 
         this._debugObjectLogger = new DebugObjectLogger(this);
@@ -84,6 +84,8 @@ export class Context
         this._snapshotMonitor = new SnapshotMonitor(this);
 
         this._webSocketUpdater = new WebSocketUpdater(this);
+
+        this._validationScheduler = new ValidationScheduler(this);
 
         this._server = new WebServer(this);
 
@@ -99,12 +101,12 @@ export class Context
 
         backend.stage("redis", () => this._redis.run());
 
-        backend.stage("setup-facade", () => this._facadeRegistry.init());
-
         // TODO: Temporary
-        // backend.stage("setup-parser-loader", () => this._parserLoader.init());
+        backend.stage("setup-parser-loader", () => this._parserLoader.init());
 
         backend.stage("setup-snapshot-monitor", () => this._snapshotMonitor.init());
+
+        backend.stage("setup-validation-scheduler", () => this._validationScheduler.init());
 
         backend.stage("setup-server", () => this._server.run());
 
@@ -142,10 +144,6 @@ export class Context
         return this._executor;
     }
     
-    get facadeRegistry() {
-        return this._facadeRegistry;
-    }
-
     get registry() {
         return this._registry;
     }
@@ -160,6 +158,10 @@ export class Context
 
     get snapshotProcessor() {
         return this._snapshotProcessor;
+    }
+
+    get snapshotMonitor() {
+        return this._snapshotMonitor;
     }
 
     get worldvious() {

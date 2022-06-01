@@ -1,14 +1,20 @@
 import { ConcreteRegistry } from "../../concrete/registry";
 
 export interface ExecutorTarget {
-    registry: ConcreteRegistry;
+    // registry: ConcreteRegistry;
+    job: {
+        namespace: string,
+        name: string,
+    }
 }
 
 export interface ExecutorTaskTarget {
+    job: {
+        namespace: string,
+        name: string,
+    },
     registry: ConcreteRegistry;
-    snapshotId: Buffer;
-    date: Date;
-    counters: ExecutorCounters;
+    snapshotIdStr: string;
 }
 
 

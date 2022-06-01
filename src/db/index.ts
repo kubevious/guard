@@ -11,6 +11,7 @@ import { SnapshotsAccessors, prepareSnapshots } from '@kubevious/data-models/dis
 import { RuleEngineAccessors, prepareRuleEngine } from '@kubevious/data-models/dist/models/rule_engine'
 import { ValidationAccessors, prepareValidation } from '@kubevious/data-models/dist/models/validation'
 import { LogicStoreAccessors, prepareLogicStore } from '@kubevious/data-models/dist/models/logic-store'
+import { GuardAccessors, prepareGuard } from '@kubevious/data-models/dist/models/guard'
 
 const DB_NAME = process.env.MYSQL_DB;
 export class Database
@@ -26,7 +27,7 @@ export class Database
     private _ruleEngine : RuleEngineAccessors;
     private _validation : ValidationAccessors;
     private _logicStore : LogicStoreAccessors;
-
+    private _guard : GuardAccessors;
 
     constructor(logger : ILogger, context : Context)
     {
@@ -40,6 +41,7 @@ export class Database
         this._ruleEngine = prepareRuleEngine(this._dataStore);
         this._validation = prepareValidation(this._dataStore);
         this._logicStore = prepareLogicStore(this._dataStore);
+        this._guard = prepareGuard(this._dataStore);
     }
 
     get logger() {
@@ -76,6 +78,10 @@ export class Database
 
     get logicStore() {
         return this._logicStore;
+    }
+
+    get guard() {
+        return this._guard;
     }
 
     onConnect(cb: () => Resolvable<any>)
