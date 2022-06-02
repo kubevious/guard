@@ -12,16 +12,19 @@ import { Context } from '../../context'
 import { ExecutorTaskTarget } from './types';
 
 import { ValidationConfig } from '@kubevious/entity-meta';
-import { RuleObject } from '../../rule/types';
 import { PersistenceItem } from '@kubevious/helper-logic-processor/dist/store/presistence-store';
 import { ConcreteRegistry } from '../../concrete/registry';
-import { ChangePackageRow } from '@kubevious/data-models/dist/models/guard';
+import { ChangePackageRow, ValidationState, ValidationStateRow } from '@kubevious/data-models/dist/models/guard';
+import { ValidationIssues, ValidationObjectIssues, ValidationStateAlerts, ValidationStateSummary } from '@kubevious/ui-middleware/dist/entities/guard';
+import { Database } from '../../db';
+import { RuleObject } from '@kubevious/helper-rule-engine';
 
 export class ExecutorTask
 {
     private _context : Context;
     private _logger : ILogger;
     private _target: ExecutorTaskTarget;
+    private _dataStore : Database;
 
     private _snapshotIdStr: string;
     
@@ -34,11 +37,16 @@ export class ExecutorTask
     private _baselineStage?: ProcessingStage;
     private _changeStage?: ProcessingStage;
 
+    private _summary?: ValidationStateSummary;
+    private _newIssues?: ValidationIssues;
+    private _clearedIssues?: ValidationIssues;
+
     constructor(logger: ILogger, context : Context, target: ExecutorTaskTarget)
     {
         this._logger = logger;
-        this._context = context;
+        this._context = context;        
         this._target = target;
+        this._dataStore = context.dataStore;
 
         this._snapshotIdStr = target.snapshotIdStr;
 
@@ -49,7 +57,7 @@ export class ExecutorTask
         return this._logger;
     }
 
-    execute(tracker: ProcessingTrackerScoper) : Promise<void>
+    execute(tracker: ProcessingTrackerScoper)
     {
         this.logger.info("[execute] Begin");
 
@@ -62,8 +70,9 @@ export class ExecutorTask
             .then(() => this._processBaseline(tracker))
             .then(() => this._processChange(tracker))
             .then(() => this._processAlerts(tracker))
+            .then(() => this._persist(tracker))
             // .then(() => this._notifyWebSocket(tracker))
-            // .then(() => {})
+            .then(() => {})
             ;
     }
 
@@ -92,7 +101,6 @@ export class ExecutorTask
                     this._rules = rows.map(x => {
                         const rule : RuleObject = {
                             name: x.name!,
-                            hash: x.hash!,
                             target: x.target!,
                             script: x.script!
                         }
@@ -196,43 +204,120 @@ export class ExecutorTask
                 throw new Error("Missing change alerts");
             }
 
-            const newAlerts = this._buildAlertsDiff(this._changeStage?.alerts, this._baselineStage?.alerts);
+            this._newIssues = this._buildAlertsDiff(this._changeStage?.alerts, this._baselineStage?.alerts);
+            this._clearedIssues = this._buildAlertsDiff(this._baselineStage?.alerts, this._changeStage?.alerts);
 
-            const clearedAlerts = this._buildAlertsDiff(this._baselineStage?.alerts, this._changeStage?.alerts);
+            this._summary = {
+                issues: {
+                    raised: this._buildIssueSummary(this._newIssues),
+                    cleared: this._buildIssueSummary(this._clearedIssues),
+                }
+            }
 
             return Promise.resolve()
-                .then(() => this._outputFile(`new-alerts.json`, newAlerts))
-                .then(() => this._outputFile(`cleared-alerts.json`, clearedAlerts))
+                .then(() => this._outputFile(`new-alerts.json`, this._newIssues))
+                .then(() => this._outputFile(`cleared-alerts.json`, this._clearedIssues))
+                .then(() => this._outputFile(`summary.json`, this._summary))
         });
+    }
+
+    private _persist(tracker: ProcessingTrackerScoper)
+    {
+        return tracker.scope("persist", (innerTracker) => {
+
+            const date = new Date();
+
+            return Promise.resolve()
+                .then(() => this._persistState(date))
+                ;
+        });
+    }
+
+    private _persistState(date: Date)
+    {
+        if (!this._summary) {
+            throw new Error("Missing summary");
+        }
+
+        const success = 
+            (this._summary.issues.raised.errors + this._summary.issues.raised.warnings) > 0;
+
+        const row : ValidationStateRow = {
+            namespace: this._target.job.namespace,
+            name: this._target.job.name,
+
+            date: date,
+            state: ValidationState.completed,
+            success: success,
+
+            summary: this._summary,
+            newIssues: this._newIssues,
+            clearedIssues: this._clearedIssues,
+        }
+
+        return this._dataStore.table(this._dataStore.guard.ValidationState)
+            .create(row)
     }
 
     private _buildAlertsDiff(newAlerts: ProcessingAlertsDict, oldAlerts: ProcessingAlertsDict)
     {
-        const diff : Record<string, Alert[]> = {};
+        const diff : ValidationIssues = [];
 
         for(const dn of _.keys(newAlerts))
         {
             const newAlertsObj = newAlerts[dn];
             const oldAlertsObj = oldAlerts[dn];
+
             if (oldAlertsObj)
             {
+                let diffObjItem : ValidationObjectIssues | null = null;
+
                 for(const key of _.keys(newAlertsObj))
                 {
                     if (!oldAlertsObj[key]) {
-                        if (!diff[dn]) {
-                            diff[dn] = []
+                        if (!diffObjItem) {
+                            diffObjItem = {
+                                dn: dn,
+                                alerts: []
+                            }
+                            diff.push(diffObjItem!);
                         }
-                        diff[dn].push(newAlertsObj[key]);
+                        diffObjItem.alerts.push(newAlertsObj[key]);
                     }
                 }
             }
             else
             {
-                diff[dn] = _.values(newAlertsObj);
+                diff.push({
+                    dn: dn,
+                    alerts: _.values(newAlertsObj)
+                });
             }
         }
 
         return diff;
+    }
+
+    private _buildIssueSummary(issues : ValidationIssues) : ValidationStateAlerts
+    {
+        const counter : ValidationStateAlerts = {
+            errors: 0,
+            warnings: 0
+        }
+
+        for(const x of _.values(issues))
+        {
+            for(const alert of x.alerts)
+            {
+                if (alert.severity === 'error') {
+                    counter.errors ++;
+                } else if (alert.severity === 'warn') {
+                    counter.warnings ++;
+                }
+            }
+        }
+
+        return counter;
     }
 
     private _processStage(stage: ProcessingStage, tracker: ProcessingTrackerScoper)

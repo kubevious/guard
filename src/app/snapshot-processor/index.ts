@@ -10,7 +10,7 @@ import { RegistryState, RegistryBundleState } from '@kubevious/state-registry';
 import { ProcessorBuilder, Handler as ProcessorHandler, HandlerArgs } from './builder';
 import { ExecutionContext as RuleEngineExecutionContext, RuleObject } from '@kubevious/helper-rule-engine';
 
-import { Context } from '../context';
+import { Context } from '../../context';
 import { ProcessingTrackerScoper } from '@kubevious/helper-backend';
 
 interface ProcessorEntry

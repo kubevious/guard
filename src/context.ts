@@ -4,9 +4,8 @@ import _ from 'the-lodash';
 import { Backend } from '@kubevious/helper-backend'
 
 import { Database } from './db';
-import { Registry } from './registry/registry';
 import { DebugObjectLogger } from './utils/debug-object-logger';
-import { SnapshotProcessor } from './snapshot-processor';
+import { SnapshotProcessor } from './app/snapshot-processor';
 import { WorldviousClient } from '@kubevious/worldvious-client';
 
 import { RedisClient } from '@kubevious/helper-redis';
@@ -36,8 +35,6 @@ export class Context
 
     private _dataStore: Database;
     private _redis : RedisClient;
-
-    private _registry: Registry;
 
     private _debugObjectLogger: DebugObjectLogger;
 
@@ -70,8 +67,6 @@ export class Context
         this._redis = new RedisClient(this.logger.sublogger('Redis'));
 
         this._backendMetrics = new BackendMetrics(this);
-
-        this._registry = new Registry(this);
 
         this._executor = new Executor(this);
 
@@ -144,10 +139,6 @@ export class Context
         return this._executor;
     }
     
-    get registry() {
-        return this._registry;
-    }
-
     get debugObjectLogger() {
         return this._debugObjectLogger;
     }

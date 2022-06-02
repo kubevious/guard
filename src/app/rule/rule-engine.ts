@@ -2,7 +2,7 @@ import _ from 'the-lodash';
 import { Promise } from 'the-promise';
 import { ILogger } from 'the-logger' ;
 
-import { Context } from '../context';
+import { Context } from '../../context';
 
 import { RegistryState } from '@kubevious/state-registry';
 import { ProcessingTrackerScoper } from '@kubevious/helper-backend';
