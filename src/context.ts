@@ -22,6 +22,8 @@ import { BackendMetrics } from './app/backend-metrics';
 import { SnapshotMonitor } from './app/snapshot-monitor/snapshot-monitor';
 import { ValidationScheduler } from './app/validation-scheduler/validation-scheduler';
 
+import { JobStatusUpdater } from './app/job-status-updater/job-status-updater';
+
 
 import VERSION from './version'
 
@@ -51,6 +53,7 @@ export class Context
 
     private _snapshotMonitor : SnapshotMonitor;
     private _validationScheduler : ValidationScheduler;
+    private _jobStatusUpdater : JobStatusUpdater;
 
     constructor(backend : Backend)
     {
@@ -82,6 +85,8 @@ export class Context
 
         this._validationScheduler = new ValidationScheduler(this);
 
+        this._jobStatusUpdater = new JobStatusUpdater(this);
+
         this._server = new WebServer(this);
 
         backend.registerErrorHandler((reason) => {
@@ -96,7 +101,6 @@ export class Context
 
         backend.stage("redis", () => this._redis.run());
 
-        // TODO: Temporary
         backend.stage("setup-parser-loader", () => this._parserLoader.init());
 
         backend.stage("setup-snapshot-monitor", () => this._snapshotMonitor.init());
@@ -169,6 +173,10 @@ export class Context
 
     get backendMetrics() {
         return this._backendMetrics;
+    }
+
+    get jobStatusUpdater() {
+        return this._jobStatusUpdater;
     }
 
     private _setupMetricsTracker()

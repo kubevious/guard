@@ -62,6 +62,7 @@ export class ExecutorTask
         this.logger.info("[execute] Begin");
 
         return Promise.resolve()
+            .then(() => this._markProcessStart(tracker))
             .then(() => this._queryValidatorConfig(tracker))
             .then(() => this._queryRules(tracker))
             .then(() => this._queryChangePackage(tracker))
@@ -76,6 +77,17 @@ export class ExecutorTask
             ;
     }
 
+    private _markProcessStart(tracker: ProcessingTrackerScoper)
+    {
+        return tracker.scope("mark-start", (innerTracker) => {
+
+            const date = new Date();
+
+            return Promise.resolve()
+                .then(() => this._persistHistory(ValidationState.running, date))
+                ;
+        });
+    }
 
     private _queryValidatorConfig(tracker: ProcessingTrackerScoper)
     {
@@ -229,8 +241,20 @@ export class ExecutorTask
 
             return Promise.resolve()
                 .then(() => this._persistState(date))
+                .then(() => this._persistHistory(ValidationState.completed, date))
                 ;
         });
+    }
+
+    private _persistHistory(state: ValidationState, date: Date)
+    {
+        return this._context.jobStatusUpdater.persistStatus({
+            namespace: this._target.job.namespace,
+            name: this._target.job.name,
+
+            date: date,
+            state: state
+        })
     }
 
     private _persistState(date: Date)
@@ -398,7 +422,6 @@ export class ExecutorTask
                 }
             }
 
-            
         });
     }
 
