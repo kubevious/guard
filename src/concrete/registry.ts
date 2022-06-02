@@ -6,6 +6,7 @@ import { ConcreteItem } from './item';
 import yaml from 'js-yaml';
 
 import { ItemId, IConcreteRegistry } from '@kubevious/helper-logic-processor'
+
 export class ConcreteRegistry implements IConcreteRegistry
 {
     private _logger : ILogger;
@@ -36,6 +37,16 @@ export class ConcreteRegistry implements IConcreteRegistry
 
     get allItems() : ConcreteItem[] {
         return _.values(this._flatItemsDict);
+    }
+
+    clone()
+    {
+        const other = new ConcreteRegistry(this._logger, this._snapshotId, this._date);
+        for(const item of this.allItems)
+        {
+            other.add(item.id, item.config);
+        }
+        return other;
     }
 
     add(id: ItemId, obj: any)

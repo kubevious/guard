@@ -29,8 +29,8 @@
     "@kubevious/helper-logic-processor": "^1.0.95",
     "@kubevious/helper-redis": "^1.0.19",
     "@kubevious/helper-rule-engine": "^1.0.23",
-    "@kubevious/helpers": "^1.0.65",
     "@kubevious/http-client": "^1.0.19",
+    "@kubevious/state-registry": "^1.0.13",
     "@kubevious/ui-middleware": "^1.0.63",
     "@kubevious/websocket-server": "^1.0.26",
     "@kubevious/worldvious-client": "^1.0.9",
@@ -64,7 +64,6 @@
     "the-lodash": "^2.0.9",
     "the-logger": "^2.0.14",
     "the-promise": "^2.0.13",
-    "@kubevious/helpers": "^1.0.65",
     "@kubevious/easy-data-store": "^1.0.11",
     "@kubevious/helper-backend": "^1.0.38",
     "@kubevious/helper-logic-processor": "^1.0.95",
@@ -75,6 +74,7 @@
     "@kubevious/ui-middleware": "^1.0.63",
     "@kubevious/http-client": "^1.0.19",
     "@kubevious/helper-redis": "^1.0.19",
-    "@kubevious/agent-middleware": "^1.0.82"
+    "@kubevious/agent-middleware": "^1.0.82",
+    "@kubevious/state-registry": "^1.0.13"
   }
 }

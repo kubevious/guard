@@ -55,7 +55,10 @@ export class Executor
 
                     return this._context.tracker.scope("executor", (innerTracker) => {
                         const task = new ExecutorTask(this._logger, this._context, taskTarget);
-                        return task.execute(innerTracker);
+                        return task.execute(innerTracker)
+                            .catch(reason => {
+                                this._logger.error("Error processing guard. Reason: ", reason);
+                            });
                     });
                 }
             })

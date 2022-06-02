@@ -5,7 +5,6 @@ REPO_DEPENDENCIES=(
     "the-logger"
     "the-promise"
     "@kubevious/entity-meta"
-    "@kubevious/helpers"
     "@kubevious/easy-data-store"
     "@kubevious/helper-backend"
     "@kubevious/helper-logic-processor"
@@ -16,6 +15,7 @@ REPO_DEPENDENCIES=(
     "@kubevious/http-client"
     "@kubevious/helper-redis"
     "@kubevious/agent-middleware"
+    "@kubevious/state-registry"
 )
 
 FORCE_RESOLVE_DEPENDENCIES=(
@@ -23,7 +23,6 @@ FORCE_RESOLVE_DEPENDENCIES=(
     "the-logger"
     "the-promise"
     "@kubevious/entity-meta"
-    "@kubevious/helpers"
     "@kubevious/easy-data-store"
     "@kubevious/helper-backend"
     "@kubevious/helper-logic-processor"
@@ -34,4 +33,5 @@ FORCE_RESOLVE_DEPENDENCIES=(
     "@kubevious/http-client"
     "@kubevious/helper-redis"
     "@kubevious/agent-middleware"
+    "@kubevious/state-registry"
 )

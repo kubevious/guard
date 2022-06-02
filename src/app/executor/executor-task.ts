@@ -4,9 +4,9 @@ import { Promise } from 'the-promise';
 
 import * as Path from 'path';
 
-import { LogicProcessor } from '@kubevious/helper-logic-processor'
+import { extractK8sConfigId, LogicProcessor } from '@kubevious/helper-logic-processor'
 import { ProcessingTrackerScoper } from '@kubevious/helper-backend';
-import { RegistryState, RegistryBundleState } from '@kubevious/state-registry';
+import { RegistryState, RegistryBundleState, Alert } from '@kubevious/state-registry';
 
 import { Context } from '../../context'
 import { ExecutorTaskTarget } from './types';
@@ -15,6 +15,7 @@ import { ValidationConfig } from '@kubevious/entity-meta';
 import { RuleObject } from '../../rule/types';
 import { PersistenceItem } from '@kubevious/helper-logic-processor/dist/store/presistence-store';
 import { ConcreteRegistry } from '../../concrete/registry';
+import { ChangePackageRow } from '@kubevious/data-models/dist/models/guard';
 
 export class ExecutorTask
 {
@@ -25,6 +26,7 @@ export class ExecutorTask
     private _snapshotIdStr: string;
     
     private _rules? : RuleObject[];
+    private _changePackageRow?: Partial<ChangePackageRow>;
 
     private _validationConfig: Partial<ValidationConfig> = {};
     private _logicStoreItems : PersistenceItem[] = [];
@@ -54,6 +56,7 @@ export class ExecutorTask
         return Promise.resolve()
             .then(() => this._queryValidatorConfig(tracker))
             .then(() => this._queryRules(tracker))
+            .then(() => this._queryChangePackage(tracker))
             // .then(() => this._queryMarkers(tracker))
             // .then(() => this._queryLogicStore(tracker))
             .then(() => this._processBaseline(tracker))
@@ -74,6 +77,7 @@ export class ExecutorTask
                 .then(rows => {
                     this._validationConfig = _.makeDict(rows, x => x.validator_id!, x => x.setting!);
                 })
+                .then(() => this._outputFile(`validator-config.json`, this._validationConfig));
 
         });
     }
@@ -98,6 +102,25 @@ export class ExecutorTask
 
         });
     }
+
+    private _queryChangePackage(tracker: ProcessingTrackerScoper)
+    {
+        return tracker.scope("query-change-package", (innerTracker) => {
+
+            return this._context.dataStore.table(this._context.dataStore.guard.ChangePackage)
+                .queryOne({ 
+                    namespace: this._target.job.namespace,
+                    name: this._target.job.name,
+                })
+                .then(row => {
+                    if (!row) {
+                        throw new Error('Missing change package');
+                    }
+                    this._changePackageRow = row;
+                });
+        });
+    }
+    
 
     private _queryLogicStore(tracker: ProcessingTrackerScoper)
     {
@@ -124,12 +147,14 @@ export class ExecutorTask
         return tracker.scope("baseline", (innerTracker) => {
 
             this._baselineStage = {
-                concreteRegistry: this._target.registry
+                concreteRegistry: this._target.registry,
+                alerts: {}
             }
 
             return Promise.resolve()
-                .then(() => this._executeLogicProcessor(this._baselineStage!, innerTracker))
-                .then(() => this._executeSnapshotProcessor(this._baselineStage!, innerTracker))
+                .then(() => this._processStage(this._baselineStage!, innerTracker))
+                .then(() => this._outputFile(`baseline-alerts.json`, this._baselineStage!.alerts));
+
                 ;
 
         });
@@ -139,13 +164,21 @@ export class ExecutorTask
     {
         return tracker.scope("change", (innerTracker) => {
 
+            const concreteRegistry = this._target.registry.clone();
+            for(const k8sObj of this._changePackageRow!.changes!)
+            {
+                const itemId = extractK8sConfigId(k8sObj);
+                concreteRegistry.add(itemId, k8sObj);
+            }
+
             this._changeStage = {
-                concreteRegistry: this._target.registry
+                concreteRegistry: concreteRegistry,
+                alerts: {}
             }
 
             return Promise.resolve()
-                .then(() => this._executeLogicProcessor(this._changeStage!, innerTracker))
-                .then(() => this._executeSnapshotProcessor(this._changeStage!, innerTracker))
+                .then(() => this._processStage(this._changeStage!, innerTracker))
+                .then(() => this._outputFile(`change-alerts.json`, this._changeStage!.alerts));
                 ;
                 
         });
@@ -155,13 +188,69 @@ export class ExecutorTask
     {
         return tracker.scope("process-alerts", (innerTracker) => {
 
-                
+            if (!this._baselineStage?.alerts) {
+                throw new Error("Missing baseline alerts");
+            }
+
+            if (!this._changeStage?.alerts) {
+                throw new Error("Missing change alerts");
+            }
+
+            const newAlerts = this._buildAlertsDiff(this._changeStage?.alerts, this._baselineStage?.alerts);
+
+            const clearedAlerts = this._buildAlertsDiff(this._baselineStage?.alerts, this._changeStage?.alerts);
+
+            return Promise.resolve()
+                .then(() => this._outputFile(`new-alerts.json`, newAlerts))
+                .then(() => this._outputFile(`cleared-alerts.json`, clearedAlerts))
         });
+    }
+
+    private _buildAlertsDiff(newAlerts: ProcessingAlertsDict, oldAlerts: ProcessingAlertsDict)
+    {
+        const diff : Record<string, Alert[]> = {};
+
+        for(const dn of _.keys(newAlerts))
+        {
+            const newAlertsObj = newAlerts[dn];
+            const oldAlertsObj = oldAlerts[dn];
+            if (oldAlertsObj)
+            {
+                for(const key of _.keys(newAlertsObj))
+                {
+                    if (!oldAlertsObj[key]) {
+                        if (!diff[dn]) {
+                            diff[dn] = []
+                        }
+                        diff[dn].push(newAlertsObj[key]);
+                    }
+                }
+            }
+            else
+            {
+                diff[dn] = _.values(newAlertsObj);
+            }
+        }
+
+        return diff;
+    }
+
+    private _processStage(stage: ProcessingStage, tracker: ProcessingTrackerScoper)
+    {
+        return Promise.resolve()
+            .then(() => this._executeLogicProcessor(stage, tracker))
+            .then(() => this._executeSnapshotProcessor(stage, tracker))
+            .then(() => this._extractAlerts(stage, tracker))
+            ;
     }
 
     private _executeLogicProcessor(stage: ProcessingStage, tracker: ProcessingTrackerScoper)
     {
         return tracker.scope("logic-processor", (innerTracker) => {
+
+            if (!stage.concreteRegistry) {
+                throw new Error("Could not produce concreteRegistry");
+            }
 
             const logicProcessor = new LogicProcessor(
                 this.logger,
@@ -202,6 +291,31 @@ export class ExecutorTask
         });
     }
 
+    private _extractAlerts(stage: ProcessingStage, tracker: ProcessingTrackerScoper)
+    {
+        return tracker.scope("snapshot-processor", (innerTracker) => {
+
+            if (!stage.bundleState) {
+                throw new Error("Could not produce bundleState");
+            }
+            
+            for(const nodeItem of stage.bundleState.nodeItems)
+            {
+                if (nodeItem.selfAlerts.length > 0)
+                {
+                    stage.alerts[nodeItem.dn] = {};
+                    const nodeAlerts = stage.alerts[nodeItem.dn];
+                
+                    for(const alert of nodeItem.selfAlerts)
+                    {
+                        nodeAlerts[_.stableStringify(alert)] = alert;
+                    }
+                }
+            }
+
+            
+        });
+    }
 
     private _notifyWebSocket(tracker: ProcessingTrackerScoper)
     {
@@ -215,7 +329,7 @@ export class ExecutorTask
     private _outputFile(fileName: string, contents: any)
     {
         const filePath = Path.join(
-            `snapshot-${this._snapshotIdStr}`,
+            `change-${this._target.job.namespace}-${this._target.job.name}`,
             fileName
         )
         return this.logger.outputFile(filePath, contents)
@@ -225,7 +339,15 @@ export class ExecutorTask
 
 interface ProcessingStage
 {
-    concreteRegistry: ConcreteRegistry;
-    registryState?: RegistryState;
-    bundleState?: RegistryBundleState;
+    concreteRegistry: ConcreteRegistry,
+    registryState?: RegistryState,
+    bundleState?: RegistryBundleState,
+
+    alerts : ProcessingAlertsDict,
 }
+
+type ProcessingAlertsDict = {
+    [dn: string] : {
+        [alertId: string] : Alert
+    }
+};
