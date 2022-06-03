@@ -24,7 +24,7 @@ export class BackendMetrics
 
     extractMetrics() 
     {
-        const metrics: BackendMetricItem[] = [];
+        let metrics: BackendMetricItem[] = [];
 
         metrics.push({
             category: "Guard",
@@ -44,14 +44,10 @@ export class BackendMetrics
             value: this._context.redis.isConnected
         });
 
-        // {
-        //     const newMetrics = this._context.collector.extractMetrics();
-        //     metrics = _.concat(metrics, newMetrics);
-        // }
-        // {
-        //     const newMetrics = this._context.executor.extractMetrics();
-        //     metrics = _.concat(metrics, newMetrics);
-        // }
+        {
+            const newMetrics = this._context.executor.extractMetrics();
+            metrics = _.concat(metrics, newMetrics);
+        }
 
         return metrics;
     }

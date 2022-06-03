@@ -160,15 +160,67 @@ wait_validation()
     query_validation_status
     RESULT=$?
     if [[ ${RESULT} -eq 0 ]]; then
-      break;
+
+      VALIDATION_STATE=$(echo ${VALIDATION_STATE_DATA} | yq '.status.state')
+      echo "⏳     State: ${VALIDATION_STATE}..."
+
+      if [[ ${VALIDATION_STATE} == "failed" || ${VALIDATION_STATE} == "completed" ]]; then
+        break;
+      fi;
+    else
+      echo "⏳     State: pending..."
     fi
-    echo "⏳     Waiting..."
-    sleep 5
+    # sleep 5
   done
 
-  echo "VALIDATION_STATE_DATA: ${VALIDATION_STATE_DATA}"
+  # echo "VALIDATION_STATE_DATA: ${VALIDATION_STATE_DATA}"
 
   finish_stage
+}
+
+output_success_status() 
+{
+  VALIDATION_STATE=$(echo ${VALIDATION_STATE_DATA} | yq '.status.state')
+
+  if [[ ${VALIDATION_STATE} == "failed" || ${VALIDATION_STATE} == "completed" ]]; then
+    break;
+  fi;
+}
+
+handle_validation_result() 
+{
+  VALIDATION_STATE=$(echo ${VALIDATION_STATE_DATA} | yq '.status.state')
+
+  if [[ ${VALIDATION_STATE} == "failed" ]]; then
+    handle_error "Failed to validate changes. Make sure Kubevious is running properly."
+    exit 1.
+  fi;
+
+  if [[ ${VALIDATION_STATE} != "completed" ]]; then
+    handle_error "Unknown State ${VALIDATION_STATE}. Something went wrong."
+    exit 1.
+  fi;
+
+  RAISED_ERRORS=$(echo ${VALIDATION_STATE_DATA} | yq '.status.summary.issues.raised.errors')
+  RAISED_WARNINGS=$(echo ${VALIDATION_STATE_DATA} | yq '.status.summary.issues.raised.warnings')
+  CLEARED_ERRORS=$(echo ${VALIDATION_STATE_DATA} | yq '.status.summary.issues.cleared.errors')
+  CLEARED_WARNINGS=$(echo ${VALIDATION_STATE_DATA} | yq '.status.summary.issues.cleared.warnings')
+
+  echo ""
+  echo "Issue Summary Summary:"
+  echo "👎 🔴 Raised Errors: ${RAISED_ERRORS}"
+  echo "👎 ⚠️  Raised Warnings: ${RAISED_WARNINGS}"
+  echo "👍 🔴 Cleared Errors: ${CLEARED_ERRORS}"
+  echo "👍 ⚠️  Cleared Warnings: ${CLEARED_WARNINGS}"
+  echo ""
+
+  VALIDATION_SUCCESS=$(echo ${VALIDATION_STATE_DATA} | yq '.status.success')
+  if [[ ${VALIDATION_SUCCESS} == "true" ]]; then
+    echo "Change validation passed successfully."
+    exit 0
+  fi;
+  handle_error "Change validation failed."
+  exit 1
 }
 
 ###
@@ -188,3 +240,6 @@ apply_package
 
 ###
 wait_validation
+
+###
+handle_validation_result

@@ -1,4 +1,4 @@
-export SERVER_PORT=4004
+export SERVER_PORT=4005
 export CONTAINER_NAME=kubevious-guard
 export NETWORK_NAME=kubevious
 export IMAGE_NAME=kubevious-guard

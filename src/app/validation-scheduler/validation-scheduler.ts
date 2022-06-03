@@ -12,6 +12,9 @@ export class ValidationScheduler
     private _context : Context;
     private _dataStore : Database;
 
+    private _isDirty: boolean = false;
+    private _isBusy: boolean = false;
+
     constructor(context : Context)
     {
         this._context = context;
@@ -22,21 +25,44 @@ export class ValidationScheduler
 
     init() 
     {
-        this._context.dataStore.onConnect(this._refreshJobs.bind(this));
+        this._context.dataStore.onConnect(this.processJobs.bind(this));
     }
 
-    private _refreshJobs()
+    processJobs()
     {
-        return this._fetchNextJob()
+        this._isDirty = true;
+        this._tryProcessJobs();
+    }
+
+    private _tryProcessJobs()
+    {
+        if (this._isBusy) {
+            return;
+        }
+        this._isDirty = false;
+
+        Promise.resolve(null)
+            .then(() => this._fetchNextJob())
             .then(job => {
                 this._logger.info("JOB : ", job);
 
                 if (job) {
                     return this._scheduleJob(job)
                         .then(() => {
-                            // return this.removeJobFromQueue(job);
+                            return this.removeJobFromQueue(job);
+                        })
+                        .then(() => {
+                            this._isBusy = false;
                         })
                 }
+            })
+            .then(() => {
+                if (this._isDirty) {
+                    this._tryProcessJobs();
+                }
+            })
+            .catch(reason => {
+                this._logger.error("Something went terribly wrong: ", reason);
             })
     }
     

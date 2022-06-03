@@ -186,6 +186,10 @@ export class Context
         return this._backendClient;
     }
 
+    get validationScheduler() {
+        return this._validationScheduler;
+    }
+
     private _setupMetricsTracker()
     {
         this.tracker.registerListener(extractedData => {

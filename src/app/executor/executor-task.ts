@@ -65,6 +65,9 @@ export class ExecutorTask
             .then(() => this._queryValidatorConfig(tracker))
             .then(() => this._queryRules(tracker))
             .then(() => this._queryChangePackage(tracker))
+            // .then(() => {
+            //     throw new Error("XXX")
+            // })
             // .then(() => this._queryMarkers(tracker))
             .then(() => this._queryLogicStore(tracker))
             .then(() => this._processBaseline(tracker))
@@ -236,7 +239,7 @@ export class ExecutorTask
         }
 
         const success = 
-            (this._summary.issues.raised.errors + this._summary.issues.raised.warnings) > 0;
+            (this._summary.issues.raised.errors + this._summary.issues.raised.warnings) === 0;
 
         const row : ValidationStateRow = {
             change_id: this._target.changeId,
