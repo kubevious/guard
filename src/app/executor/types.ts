@@ -1,18 +1,11 @@
 import { ConcreteRegistry } from "../../concrete/registry";
 
 export interface ExecutorTarget {
-    // registry: ConcreteRegistry;
-    job: {
-        namespace: string,
-        name: string,
-    }
+    changeId: string,
 }
 
 export interface ExecutorTaskTarget {
-    job: {
-        namespace: string,
-        name: string,
-    },
+    changeId: string,
     registry: ConcreteRegistry;
     snapshotIdStr: string;
 }
@@ -21,6 +14,9 @@ export interface ExecutorTaskTarget {
 
 export interface ExecutorCounters
 {
-    processCount: number;
+    processStartCount: number;
+    processCompleteCount: number;
+    processFailCount: number;
+
     recentDurations : number[];
 }

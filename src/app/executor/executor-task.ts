@@ -62,31 +62,17 @@ export class ExecutorTask
         this.logger.info("[execute] Begin");
 
         return Promise.resolve()
-            .then(() => this._markProcessStart(tracker))
             .then(() => this._queryValidatorConfig(tracker))
             .then(() => this._queryRules(tracker))
             .then(() => this._queryChangePackage(tracker))
             // .then(() => this._queryMarkers(tracker))
-            // .then(() => this._queryLogicStore(tracker))
+            .then(() => this._queryLogicStore(tracker))
             .then(() => this._processBaseline(tracker))
             .then(() => this._processChange(tracker))
             .then(() => this._processAlerts(tracker))
             .then(() => this._persist(tracker))
-            // .then(() => this._notifyWebSocket(tracker))
             .then(() => {})
             ;
-    }
-
-    private _markProcessStart(tracker: ProcessingTrackerScoper)
-    {
-        return tracker.scope("mark-start", (innerTracker) => {
-
-            const date = new Date();
-
-            return Promise.resolve()
-                .then(() => this._persistHistory(ValidationState.running, date))
-                ;
-        });
     }
 
     private _queryValidatorConfig(tracker: ProcessingTrackerScoper)
@@ -129,8 +115,7 @@ export class ExecutorTask
 
             return this._context.dataStore.table(this._context.dataStore.guard.ChangePackage)
                 .queryOne({ 
-                    namespace: this._target.job.namespace,
-                    name: this._target.job.name,
+                    change_id: this._target.changeId,
                 })
                 .then(row => {
                     if (!row) {
@@ -173,8 +158,7 @@ export class ExecutorTask
 
             return Promise.resolve()
                 .then(() => this._processStage(this._baselineStage!, innerTracker))
-                .then(() => this._outputFile(`baseline-alerts.json`, this._baselineStage!.alerts));
-
+                .then(() => this._outputFile(`baseline-alerts.json`, this._baselineStage!.alerts))
                 ;
 
         });
@@ -198,7 +182,7 @@ export class ExecutorTask
 
             return Promise.resolve()
                 .then(() => this._processStage(this._changeStage!, innerTracker))
-                .then(() => this._outputFile(`change-alerts.json`, this._changeStage!.alerts));
+                .then(() => this._outputFile(`change-alerts.json`, this._changeStage!.alerts))
                 ;
                 
         });
@@ -241,20 +225,8 @@ export class ExecutorTask
 
             return Promise.resolve()
                 .then(() => this._persistState(date))
-                .then(() => this._persistHistory(ValidationState.completed, date))
                 ;
         });
-    }
-
-    private _persistHistory(state: ValidationState, date: Date)
-    {
-        return this._context.jobStatusUpdater.persistStatus({
-            namespace: this._target.job.namespace,
-            name: this._target.job.name,
-
-            date: date,
-            state: state
-        })
     }
 
     private _persistState(date: Date)
@@ -267,8 +239,7 @@ export class ExecutorTask
             (this._summary.issues.raised.errors + this._summary.issues.raised.warnings) > 0;
 
         const row : ValidationStateRow = {
-            namespace: this._target.job.namespace,
-            name: this._target.job.name,
+            change_id: this._target.changeId,
 
             date: date,
             state: ValidationState.completed,
@@ -425,19 +396,10 @@ export class ExecutorTask
         });
     }
 
-    private _notifyWebSocket(tracker: ProcessingTrackerScoper)
-    {
-        return tracker.scope("notify-websocket", (innerTracker) => {
-
-            return this._context.webSocketUpdater.notifyNewSnapshot();
-            
-        });
-    }
-
     private _outputFile(fileName: string, contents: any)
     {
         const filePath = Path.join(
-            `change-${this._target.job.namespace}-${this._target.job.name}`,
+            this._target.changeId,
             fileName
         )
         return this.logger.outputFile(filePath, contents)

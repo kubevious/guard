@@ -21,9 +21,17 @@ export class JobStatusUpdater
         return this._logger;
     }
 
-    persistStatus(row: ValidationHistoryRow)
+    notifyIntermediateState(row: ValidationHistoryRow)
     {
-        return this._dataStore.table(this._dataStore.guard.ValidationHistory)
-            .create(row)
+        return this._context.backendClient.post('/api/internal/guard/update_state', {}, row);
+    }
+
+    notifyFinalState(change_id: string)
+    {
+        const body = {
+            change_id: change_id
+        }
+        return this._context.backendClient.post('/api/internal/guard/update_final_state', {}, body)
+
     }
 }

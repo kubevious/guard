@@ -32,7 +32,10 @@ export class ValidationScheduler
                 this._logger.info("JOB : ", job);
 
                 if (job) {
-                    return this._scheduleJob(job);
+                    return this._scheduleJob(job)
+                        .then(() => {
+                            // return this.removeJobFromQueue(job);
+                        })
                 }
             })
     }
@@ -54,10 +57,15 @@ export class ValidationScheduler
     private _scheduleJob(job: Partial<ValidationQueueRow>)
     {
         return this._context.executor.process({
-            job: {
-                namespace: job.namespace!,
-                name: job.name!,
-            }
+            changeId: job.change_id!
         })
+    }
+
+    private removeJobFromQueue(job: Partial<ValidationQueueRow>)
+    {
+        return this._dataStore.table(this._dataStore.guard.ValidationQueue)
+            .deleteMany({
+                change_id: job.change_id
+            });
     }
 }

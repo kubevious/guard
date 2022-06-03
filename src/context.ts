@@ -17,12 +17,12 @@ import { Executor } from './app/executor/executor'
 
 import { ConfigAccessor } from '@kubevious/data-models';
 
-import { WebSocketUpdater } from './app/websocket-updater/websocket-updater';
 import { BackendMetrics } from './app/backend-metrics';
 import { SnapshotMonitor } from './app/snapshot-monitor/snapshot-monitor';
 import { ValidationScheduler } from './app/validation-scheduler/validation-scheduler';
 
 import { JobStatusUpdater } from './app/job-status-updater/job-status-updater';
+import { HttpClient } from '@kubevious/http-client';
 
 
 import VERSION from './version'
@@ -48,12 +48,13 @@ export class Context
 
     private _parserLoader : ParserLoader;
 
-    private _webSocketUpdater : WebSocketUpdater;
     private _backendMetrics : BackendMetrics;
 
     private _snapshotMonitor : SnapshotMonitor;
     private _validationScheduler : ValidationScheduler;
     private _jobStatusUpdater : JobStatusUpdater;
+
+    private _backendClient : HttpClient;
 
     constructor(backend : Backend)
     {
@@ -81,11 +82,17 @@ export class Context
 
         this._snapshotMonitor = new SnapshotMonitor(this);
 
-        this._webSocketUpdater = new WebSocketUpdater(this);
-
         this._validationScheduler = new ValidationScheduler(this);
 
         this._jobStatusUpdater = new JobStatusUpdater(this);
+
+        {
+            const baseUrl = process.env.BACKEND_BASE_URL;
+            if (!baseUrl) {
+                throw new Error("ENV BACKEND_BASE_URL not set.");
+            }
+            this._backendClient = new HttpClient(baseUrl);
+        }
 
         this._server = new WebServer(this);
 
@@ -163,10 +170,6 @@ export class Context
         return this._worldvious;
     }
 
-    get webSocketUpdater() {
-        return this._webSocketUpdater;
-    }
-
     get parserLoader() {
         return this._parserLoader;
     }
@@ -177,6 +180,10 @@ export class Context
 
     get jobStatusUpdater() {
         return this._jobStatusUpdater;
+    }
+
+    get backendClient() {
+        return this._backendClient;
     }
 
     private _setupMetricsTracker()
