@@ -187,6 +187,30 @@ output_success_status()
   fi;
 }
 
+output_issue_list() 
+{
+  # echo ""
+  i=0
+  while (( $i < $ISSUE_COUNT )); do
+    DN=$(echo "${ISSUES}" | yq ".[${i}].dn")
+    MSG=$(echo "${ISSUES}" | yq ".[${i}].msg")
+    SEVERITY=$(echo "${ISSUES}" | yq ".[${i}].severity")
+    echo ""
+    echo "    🏷️  ${DN}"
+
+    if [[ ${SEVERITY} == "error" ]]; then
+      echo "       🔴  ERROR: ${MSG}"
+    elif [[ ${SEVERITY} == "warn" ]]; then
+      echo "       ⚠️   WARN: ${MSG}"
+    fi
+
+    i=`expr $i + 1`
+  done
+
+  echo ""
+  echo ""
+}
+
 handle_validation_result() 
 {
   VALIDATION_STATE=$(echo ${VALIDATION_STATE_DATA} | yq '.status.state')
@@ -208,18 +232,27 @@ handle_validation_result()
 
   echo ""
   echo "🔖  Issue Summary Summary:"
+  echo ""
   echo "    👎 🔴 Raised Errors: ${RAISED_ERROR_COUNT}"
   echo "    👎 ⚠️  Raised Warnings: ${RAISED_WARNING_COUNT}"
+  echo ""
   echo "    👍 🔴 Cleared Errors: ${CLEARED_ERROR_COUNT}"
   echo "    👍 ⚠️  Cleared Warnings: ${CLEARED_WARNING_COUNT}"
   echo ""
   
 
-  readarray RAISED_ISSUES < $(echo ${VALIDATION_STATE_DATA} | yq eval '.status.raisedIssues[]')
-  # RAISED_ISSUES=$(echo ${VALIDATION_STATE_DATA} | yq eval '.status.raisedIssues[]')
-  for identityMapping in "${RAISED_ISSUES[@]}"; do
-    echo "XXxxxxxx: $identityMapping"
-  done
+  ISSUES=$(echo ${VALIDATION_STATE_DATA} | yq '.status.raisedIssues')
+  ISSUE_COUNT=$(echo "${ISSUES}" | yq '. | length')
+  echo ""
+  echo "👎  Raised Issues: ${ISSUE_COUNT}"
+  output_issue_list
+
+
+  ISSUES=$(echo ${VALIDATION_STATE_DATA} | yq '.status.clearedIssues')
+  ISSUE_COUNT=$(echo "${ISSUES}" | yq '. | length')
+  echo ""
+  echo "👍  Cleared Issues: ${ISSUE_COUNT}"
+  output_issue_list
 
 
   VALIDATION_SUCCESS=$(echo ${VALIDATION_STATE_DATA} | yq '.status.success')
