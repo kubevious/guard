@@ -78,7 +78,7 @@ export class ConcreteRegistryReader
                             });    
                     })
                     .then(() => {
-                        this._logger.info("configHashDict size: %s", _.keys(this._configHashDict).length);
+                        this._logger.info("configHashDict snap size: %s", _.keys(this._configHashDict).length);
                     })
                     .then(() => {
                         if (!diffItemsOwnerId) {
@@ -101,7 +101,7 @@ export class ConcreteRegistryReader
                             })
                     })
                     .then(() => {
-                        this._logger.info("configHashDict xx size: %s", _.keys(this._configHashDict).length);
+                        this._logger.info("configHashDict post diff size: %s", _.keys(this._configHashDict).length);
                     })
                     .then(() => this._querySnapshotConfigs())
             })

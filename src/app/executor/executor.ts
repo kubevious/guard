@@ -73,7 +73,7 @@ export class Executor
                         })
                         .catch(reason => {
                             this._logger.error("Error processing guard. Reason: ", reason);
-                            this._markFailure(target);
+                            return this._markFailure(target);
                         })
                         .then(() => { return null; })
                 })
@@ -123,7 +123,7 @@ export class Executor
 
     private _markCompleted(target: ExecutorTarget)
     {
-        this.logger.info("[_markCompleted] Target: ", target);
+        this.logger.info("[_markCompleted] Job: %s", target.changeId);
 
         this._counters.processCompleteCount++;
 
@@ -136,7 +136,7 @@ export class Executor
 
     private _markFailure(target: ExecutorTarget)
     {
-        this.logger.info("[_markFailure] Target: ", target);
+        this.logger.info("[_markFailure] Job: %s", target.changeId);
         
         this._counters.processFailCount++;
 
@@ -156,16 +156,4 @@ export class Executor
                 return this._context.jobStatusUpdater.notifyFinalState(target.changeId);
             })
     }
-
-    // private _markComplete(target: ExecutorTarget, stopwatch: StopWatch)
-    // {
-    //     this._counters.processCount++;
-        
-    //     {
-    //         const durationMs = stopwatch.stop() / 1000;
-    //         this._counters.recentDurations.push(durationMs);
-    //         this._counters.recentDurations = _.takeRight(this._counters.recentDurations, 10);
-    //     }
-    // }
-
 }

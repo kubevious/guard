@@ -26,6 +26,11 @@ export class ValidationScheduler
     init() 
     {
         this._context.dataStore.onConnect(this.processJobs.bind(this));
+
+        this._context.backend.timerScheduler.interval(
+            "scheduler",
+            60* 1000,
+            this._tryProcessJobs.bind(this))
     }
 
     processJobs()
@@ -37,6 +42,7 @@ export class ValidationScheduler
     private _tryProcessJobs()
     {
         if (this._isBusy) {
+            this._logger.info("[_tryProcessJobs] is busy. skipping...");
             return;
         }
         this._isDirty = false;
@@ -44,9 +50,8 @@ export class ValidationScheduler
         Promise.resolve(null)
             .then(() => this._fetchNextJob())
             .then(job => {
-                this._logger.info("JOB : ", job);
-
                 if (job) {
+                    this._logger.info("[_tryProcessJobs] Job: %s", job.change_id);
                     return this._scheduleJob(job)
                         .then(() => {
                             return this.removeJobFromQueue(job);
@@ -54,15 +59,19 @@ export class ValidationScheduler
                         .then(() => {
                             this._isBusy = false;
                         })
+                } else {
+                    this._logger.info("[_tryProcessJobs] Nothing to do.");
                 }
             })
             .then(() => {
+                this._isBusy = false;
                 if (this._isDirty) {
                     this._tryProcessJobs();
                 }
             })
             .catch(reason => {
-                this._logger.error("Something went terribly wrong: ", reason);
+                this._logger.error("Something went wrong: ", reason);
+                this._isBusy = false;
             })
     }
     
@@ -82,6 +91,8 @@ export class ValidationScheduler
 
     private _scheduleJob(job: Partial<ValidationQueueRow>)
     {
+        this._logger.info("[_scheduleJob] job: %s", job.change_id);
+
         return this._context.executor.process({
             changeId: job.change_id!
         })
@@ -89,6 +100,8 @@ export class ValidationScheduler
 
     private removeJobFromQueue(job: Partial<ValidationQueueRow>)
     {
+        this._logger.info("[removeJobFromQueue] job: %s", job.change_id);
+        
         return this._dataStore.table(this._dataStore.guard.ValidationQueue)
             .deleteMany({
                 change_id: job.change_id
