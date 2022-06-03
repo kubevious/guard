@@ -201,18 +201,26 @@ handle_validation_result()
     exit 1.
   fi;
 
-  RAISED_ERRORS=$(echo ${VALIDATION_STATE_DATA} | yq '.status.summary.issues.raised.errors')
-  RAISED_WARNINGS=$(echo ${VALIDATION_STATE_DATA} | yq '.status.summary.issues.raised.warnings')
-  CLEARED_ERRORS=$(echo ${VALIDATION_STATE_DATA} | yq '.status.summary.issues.cleared.errors')
-  CLEARED_WARNINGS=$(echo ${VALIDATION_STATE_DATA} | yq '.status.summary.issues.cleared.warnings')
+  RAISED_ERROR_COUNT=$(echo ${VALIDATION_STATE_DATA} | yq '.status.summary.issues.raised.errors')
+  RAISED_WARNING_COUNT=$(echo ${VALIDATION_STATE_DATA} | yq '.status.summary.issues.raised.warnings')
+  CLEARED_ERROR_COUNT=$(echo ${VALIDATION_STATE_DATA} | yq '.status.summary.issues.cleared.errors')
+  CLEARED_WARNING_COUNT=$(echo ${VALIDATION_STATE_DATA} | yq '.status.summary.issues.cleared.warnings')
 
   echo ""
-  echo "Issue Summary Summary:"
-  echo "👎 🔴 Raised Errors: ${RAISED_ERRORS}"
-  echo "👎 ⚠️  Raised Warnings: ${RAISED_WARNINGS}"
-  echo "👍 🔴 Cleared Errors: ${CLEARED_ERRORS}"
-  echo "👍 ⚠️  Cleared Warnings: ${CLEARED_WARNINGS}"
+  echo "🔖  Issue Summary Summary:"
+  echo "    👎 🔴 Raised Errors: ${RAISED_ERROR_COUNT}"
+  echo "    👎 ⚠️  Raised Warnings: ${RAISED_WARNING_COUNT}"
+  echo "    👍 🔴 Cleared Errors: ${CLEARED_ERROR_COUNT}"
+  echo "    👍 ⚠️  Cleared Warnings: ${CLEARED_WARNING_COUNT}"
   echo ""
+  
+
+  readarray RAISED_ISSUES < $(echo ${VALIDATION_STATE_DATA} | yq eval '.status.raisedIssues[]')
+  # RAISED_ISSUES=$(echo ${VALIDATION_STATE_DATA} | yq eval '.status.raisedIssues[]')
+  for identityMapping in "${RAISED_ISSUES[@]}"; do
+    echo "XXxxxxxx: $identityMapping"
+  done
+
 
   VALIDATION_SUCCESS=$(echo ${VALIDATION_STATE_DATA} | yq '.status.success')
   if [[ ${VALIDATION_SUCCESS} == "true" ]]; then
