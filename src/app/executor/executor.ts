@@ -8,7 +8,8 @@ import { ExecutorCounters, ExecutorTarget, ExecutorTaskTarget } from './types';
 import { ExecutorTask } from './executor-task';
 import { StopWatch } from '@kubevious/helper-backend';
 import { BackendMetricItem } from '@kubevious/ui-middleware';
-import { ValidationState, ValidationStateRow } from '@kubevious/data-models/dist/models/guard';
+import { ValidationStateRow } from '@kubevious/data-models/dist/models/guard';
+import { ValidationState } from '@kubevious/ui-middleware/dist/entities/guard';
 
 export class Executor
 {
