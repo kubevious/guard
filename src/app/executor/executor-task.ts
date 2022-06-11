@@ -4,7 +4,7 @@ import { Promise } from 'the-promise';
 
 import * as Path from 'path';
 
-import { extractK8sConfigId, LogicProcessor } from '@kubevious/helper-logic-processor'
+import { extractK8sConfigId, K8sConfig, LogicProcessor } from '@kubevious/helper-logic-processor'
 import { ProcessingTrackerScoper } from '@kubevious/helper-backend';
 import { RegistryState, RegistryBundleState, Alert } from '@kubevious/state-registry';
 
@@ -65,9 +65,6 @@ export class ExecutorTask
             .then(() => this._queryValidatorConfig(tracker))
             .then(() => this._queryRules(tracker))
             .then(() => this._queryChangePackage(tracker))
-            // .then(() => {
-            //     throw new Error("XXX")
-            // })
             // .then(() => this._queryMarkers(tracker))
             .then(() => this._queryLogicStore(tracker))
             .then(() => this._processBaseline(tracker))
@@ -174,7 +171,7 @@ export class ExecutorTask
             const concreteRegistry = this._target.registry.clone();
             for(const k8sObj of this._changePackageRow!.changes!)
             {
-                const itemId = extractK8sConfigId(k8sObj);
+                const itemId = extractK8sConfigId(k8sObj as K8sConfig);
                 concreteRegistry.add(itemId, k8sObj);
             }
 
