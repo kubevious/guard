@@ -8,8 +8,6 @@ export default function (router: Router, context: Context) {
 
     router.post<{}, ChangeIdBody>('/process_job', (req, res) => {
 
-        context.logger.error("PROCESS JOB: ", req.body);
-
         return Promise.resolve()
             .then(() => context.validationScheduler.processJobs())
     });

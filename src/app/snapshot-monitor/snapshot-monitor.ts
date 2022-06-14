@@ -34,16 +34,20 @@ export class SnapshotMonitor
 
     fetchCurrentRegistry() : Promise<ConcreteRegistry | null>
     {
-        if (!this._latestSnapshotId) {
-            return Promise.resolve(null);
-        }
-
-        const resolver = this._registryResolvers[this._latestSnapshotId];
-        if (!resolver) {
-            return Promise.resolve(null);
-        }
-
-        return resolver.resolve();
+        return Promise.resolve()
+            .then(() => this._refreshLatestSnapshotId())
+            .then(() => {
+                if (!this._latestSnapshotId) {
+                    return null;
+                }
+        
+                const resolver = this._registryResolvers[this._latestSnapshotId];
+                if (!resolver) {
+                    return null;
+                }
+        
+                return resolver.resolve();
+            })
     }
 
     private _refreshLatestSnapshotId()
@@ -76,7 +80,9 @@ export class SnapshotMonitor
         const resolver = new BlockingResolver<ConcreteRegistry | null>(() => {
             return this._loadSnapshot(snapshotId)
                 .then(concreteRegistry => {
-                    if (!concreteRegistry) {
+                    if (!this._latestSnapshotId ||
+                        (this._latestSnapshotId !== snapshotId))
+                    {
                         delete this._registryResolvers[snapshotId];
                     }
                     return concreteRegistry;
