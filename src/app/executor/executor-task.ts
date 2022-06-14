@@ -236,7 +236,7 @@ export class ExecutorTask
         }
 
         const success = 
-            (this._summary.issues.raised.errors + this._summary.issues.raised.warnings) === 0;
+            (this._summary.issues.raised.errors) === 0;
 
         const row : ValidationStateRow = {
             change_id: this._target.changeId,
