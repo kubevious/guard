@@ -4,6 +4,11 @@ import { ConcreteRegistry } from './registry';
 
 import { ItemId, IConcreteItem } from '@kubevious/helper-logic-processor'
 
+export function makeGroupKey(id: ItemId)
+{ 
+    return `${id.api}:${id.kind}`;
+}
+
 export class ConcreteItem implements IConcreteItem
 {
     private _registry : ConcreteRegistry;
@@ -16,7 +21,7 @@ export class ConcreteItem implements IConcreteItem
         this._registry = registry;
         this._id = id;
         this._config = config;
-        this._groupKey = `${id.api}:${id.kind}`;
+        this._groupKey = makeGroupKey(id);
     }
 
     get logger() : ILogger {

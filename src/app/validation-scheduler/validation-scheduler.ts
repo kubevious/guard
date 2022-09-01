@@ -73,6 +73,7 @@ export class ValidationScheduler
                 this._logger.error("Something went wrong: ", reason);
                 this._isBusy = false;
             })
+            .then(() => null)
     }
     
     private _fetchNextJob()

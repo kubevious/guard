@@ -2,10 +2,10 @@ import _ from 'the-lodash';
 import { Promise } from 'the-promise';
 import { ILogger } from 'the-logger';
 
-import { ConcreteItem } from './item';
+import { ConcreteItem, makeGroupKey } from './item';
 import yaml from 'js-yaml';
 
-import { ItemId, IConcreteRegistry } from '@kubevious/helper-logic-processor'
+import { ItemId, IConcreteRegistry, K8sConfig, extractK8sConfigId } from '@kubevious/helper-logic-processor'
 
 export class ConcreteRegistry implements IConcreteRegistry
 {
@@ -44,13 +44,15 @@ export class ConcreteRegistry implements IConcreteRegistry
         const other = new ConcreteRegistry(this._logger, this._snapshotId, this._date);
         for(const item of this.allItems)
         {
-            other.add(item.id, item.config);
+            other.add(item.config);
         }
         return other;
     }
 
-    add(id: ItemId, obj: any)
+    add(obj: K8sConfig)
     {
+        const id = extractK8sConfigId(obj);
+
         this.logger.verbose("[add] ", id);
 
         const rawId = this._makeDictId(id);
@@ -62,6 +64,12 @@ export class ConcreteRegistry implements IConcreteRegistry
             this._itemsKindDict[item.groupKey] = {}
         }
         this._itemsKindDict[item.groupKey][rawId] = item;
+    }
+
+    findItem(id: ItemId) : K8sConfig | null
+    { 
+        const rawId = this._makeDictId(id);
+        return this._flatItemsDict[rawId]?.config ?? null;
     }
 
     remove(id: ItemId)

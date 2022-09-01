@@ -4,7 +4,7 @@ import { Promise } from 'the-promise';
 
 import * as Path from 'path';
 
-import { extractK8sConfigId, K8sConfig, LogicProcessor } from '@kubevious/helper-logic-processor'
+import { K8sConfig, LogicProcessor } from '@kubevious/helper-logic-processor'
 import { ProcessingTrackerScoper } from '@kubevious/helper-backend';
 import { RegistryState, RegistryBundleState, Alert } from '@kubevious/state-registry';
 
@@ -159,6 +159,7 @@ export class ExecutorTask
             return Promise.resolve()
                 .then(() => this._processStage(this._baselineStage!, innerTracker))
                 .then(() => this._outputFile(`baseline-alerts.json`, this._baselineStage!.alerts))
+                .then(() => this._outputFile(`baseline-snapshot.json`, this._baselineStage!.registryState!.extractSnapshotInfo()))
                 ;
 
         });
@@ -168,21 +169,15 @@ export class ExecutorTask
     {
         return tracker.scope("change", (innerTracker) => {
 
-            const concreteRegistry = this._target.registry.clone();
-            for(const k8sObj of this._changePackageRow!.changes!)
-            {
-                const itemId = extractK8sConfigId(k8sObj as K8sConfig);
-                concreteRegistry.add(itemId, k8sObj);
-            }
-
             this._changeStage = {
-                concreteRegistry: concreteRegistry,
+                concreteRegistry: this._target.registry.clone(),
+                extraChanges: this._changePackageRow!.changes!.map(x => x as K8sConfig),
                 alerts: {}
             }
-
             return Promise.resolve()
                 .then(() => this._processStage(this._changeStage!, innerTracker))
                 .then(() => this._outputFile(`change-alerts.json`, this._changeStage!.alerts))
+                .then(() => this._outputFile(`change-snapshot.json`, this._changeStage!.registryState!.extractSnapshotInfo()))
                 ;
                 
         });
@@ -338,7 +333,13 @@ export class ExecutorTask
                 this._context.parserLoader,
                 stage.concreteRegistry,
                 this._validationConfig);
+
             logicProcessor.store.loadItems(this._logicStoreItems);
+
+            if (stage.extraChanges) 
+            {
+                logicProcessor.applyExtraChanges(stage.extraChanges);
+            }
 
             return logicProcessor.process()
                 .then(registryState => {
@@ -412,6 +413,8 @@ interface ProcessingStage
     concreteRegistry: ConcreteRegistry,
     registryState?: RegistryState,
     bundleState?: RegistryBundleState,
+
+    extraChanges?: K8sConfig[],
 
     alerts : ProcessingAlertsDict,
 }

@@ -8,10 +8,10 @@ import { ITableAccessor } from '@kubevious/easy-data-store';
 
 import { ConcreteRegistryReaderTarget } from './types'
 
-import { BufferUtils, UuidUtils } from '@kubevious/data-models';
+import { BufferUtils, DiffItemsRow, SnapItemsRow, UuidUtils } from '@kubevious/data-models';
 import { NodeKind } from '@kubevious/entity-meta';
 import { ConcreteRegistry } from '../../concrete/registry';
-import { extractK8sConfigId, K8sConfig } from '@kubevious/helper-logic-processor';
+import { K8sConfig } from '@kubevious/helper-logic-processor';
 import { SnapshotPropsConfig } from '@kubevious/agent-middleware';
 
 export class ConcreteRegistryReader
@@ -119,6 +119,35 @@ export class ConcreteRegistryReader
 
     private _querySnapshotItems(snapshotId: Buffer)
     {
+        let items : Partial<SnapItemsRow>[] = [];
+        return Promise.resolve()
+            .then(() => this._queryApiResourceSnapshotItems(snapshotId))
+            .then(result => items = items.concat(result))
+            .then(() => this._queryK8sResourcesSnapshotItems(snapshotId))
+            .then(result => items = items.concat(result))
+            .then(() => items)
+            ;
+    }
+
+    private _queryApiResourceSnapshotItems(snapshotId: Buffer)
+    {
+        const partId = UuidUtils.getPartFromDatedUUIDBuf(snapshotId);
+        return this._dataStore.table(this._context.dataStore.snapshots.SnapItems)
+            .queryMany({
+                part: partId,
+                snapshot_id: snapshotId,
+                dn: 'root/infra/k8s',
+                config_kind: 'props',
+                name: 'config'
+            }, {
+                fields: {
+                    fields: ['dn', 'config_hash']
+                } 
+            });
+    }
+
+    private _queryK8sResourcesSnapshotItems(snapshotId: Buffer)
+    {
         const partId = UuidUtils.getPartFromDatedUUIDBuf(snapshotId);
         return this._dataStore.table(this._context.dataStore.snapshots.SnapItems)
             .queryMany({
@@ -135,6 +164,35 @@ export class ConcreteRegistryReader
     }
 
     private _queryDiffItems(snapshotId: Buffer)
+    {
+        let items : Partial<DiffItemsRow>[] = [];
+        return Promise.resolve()
+            .then(() => this._queryApiResourceDiffItems(snapshotId))
+            .then(result => items = items.concat(result))
+            .then(() => this._queryK8sResourcesDiffItems(snapshotId))
+            .then(result => items = items.concat(result))
+            .then(() => items)
+            ;
+    }
+
+    private _queryApiResourceDiffItems(snapshotId: Buffer)
+    {
+        const partId = UuidUtils.getPartFromDatedUUIDBuf(snapshotId);
+        return this._dataStore.table(this._context.dataStore.snapshots.DiffItems)
+            .queryMany({
+                part: partId,
+                snapshot_id: snapshotId,
+                dn: 'root/infra/k8s',
+                config_kind: 'props',
+                name: 'config'
+            }, {
+                fields: {
+                    fields: ['dn', 'present', 'config_hash']
+                } 
+            });
+    }
+
+    private _queryK8sResourcesDiffItems(snapshotId: Buffer)
     {
         const partId = UuidUtils.getPartFromDatedUUIDBuf(snapshotId);
         return this._dataStore.table(this._context.dataStore.snapshots.DiffItems)
@@ -161,9 +219,7 @@ export class ConcreteRegistryReader
                     }
 
                     const k8sObj = configObj.config  as K8sConfig;
-
-                    const itemId = extractK8sConfigId(k8sObj);
-                    this._concreteRegistry!.add(itemId, k8sObj);
+                    this._concreteRegistry!.add(k8sObj);
                 })
         })
     }
