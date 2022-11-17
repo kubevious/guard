@@ -26,11 +26,11 @@
     "@kubevious/easy-data-store": "^1.0.13",
     "@kubevious/entity-meta": "^1.0.78",
     "@kubevious/helper-backend": "^1.0.38",
-    "@kubevious/helper-logic-processor": "^1.0.107",
+    "@kubevious/helper-logic-processor": "^1.0.108",
     "@kubevious/helper-redis": "^1.0.19",
-    "@kubevious/helper-rule-engine": "^1.0.27",
+    "@kubevious/helper-rule-engine": "^1.0.28",
     "@kubevious/http-client": "^1.0.19",
-    "@kubevious/state-registry": "^1.0.13",
+    "@kubevious/state-registry": "^1.0.16",
     "@kubevious/ui-middleware": "^1.0.75",
     "@kubevious/websocket-server": "^1.0.26",
     "@kubevious/worldvious-client": "^1.0.10",
@@ -66,8 +66,8 @@
     "the-promise": "^2.0.15",
     "@kubevious/easy-data-store": "^1.0.13",
     "@kubevious/helper-backend": "^1.0.38",
-    "@kubevious/helper-logic-processor": "^1.0.107",
-    "@kubevious/helper-rule-engine": "^1.0.27",
+    "@kubevious/helper-logic-processor": "^1.0.108",
+    "@kubevious/helper-rule-engine": "^1.0.28",
     "@kubevious/worldvious-client": "^1.0.10",
     "@kubevious/entity-meta": "^1.0.78",
     "@kubevious/data-models": "^1.0.36",
@@ -75,6 +75,6 @@
     "@kubevious/http-client": "^1.0.19",
     "@kubevious/helper-redis": "^1.0.19",
     "@kubevious/agent-middleware": "^1.0.82",
-    "@kubevious/state-registry": "^1.0.13"
+    "@kubevious/state-registry": "^1.0.16"
   }
 }

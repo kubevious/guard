@@ -111,7 +111,7 @@ export default Processor()
                 counters.totalIssues = counters.alertCount.error * 2 + counters.alertCount.warn;
 
                 namespaceInfos.push({
-                    dn: ns.dn,
+                    dn: ns,
                     counters: counters
                 });
             }
@@ -155,8 +155,10 @@ export default Processor()
             return topAlerts;
         }
 
-        function extractNamespaceAlerts(node: RegistryStateNode, counters: NamespaceAlertCounters)
+        function extractNamespaceAlerts(dn: string, counters: NamespaceAlertCounters)
         {
+            const node = state.findByDn(dn)!;
+
             for(const alert of node.selfAlerts)
             {
                 (<Record<string, number>> <any> counters.alertCount) [alert.severity] += 1;
@@ -164,8 +166,7 @@ export default Processor()
 
             for(const childDn of state.getChildrenDns(node.dn))
             {
-                const childNode = state.getNode(childDn)!;
-                extractNamespaceAlerts(childNode, counters);
+                extractNamespaceAlerts(childDn, counters);
             }
         }
 
